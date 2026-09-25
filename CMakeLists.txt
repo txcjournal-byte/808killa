@@ -82,6 +82,12 @@ target_link_libraries(K808
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
 
+# Windows: keep symbols for Release so crash reports show function names
+if(MSVC)
+    target_compile_options(K808 PRIVATE /Zi)
+    target_link_options(K808_VST3 PRIVATE /DEBUG /OPT:REF /OPT:ICF)
+endif()
+
 if(K808_BUILD_TESTS)
     add_subdirectory(tests)
 endif()

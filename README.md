@@ -1,62 +1,70 @@
 # 808 KILLA – Low End Damage Unit
 
-Distortion / saturation plugin for 808s and bass (VST3 + Standalone), built with [JUCE](https://juce.com).
-Works in FL Studio, Ableton Live and other DAWs that support VST3.
+Audio efekt pro 808 (VST3 pro Windows a Mac, AU pro Logic). Vložíš ho na mixer insert s 808,
+vybereš styl, otočíš KILL a pár maker – hotovo. Plugin nemá sampler, zpracovává jen audio, které do něj přijde.
 
 ![808 KILLA](Resources/source/design.png)
 
-## Jak získat hotový plugin (nejjednodušší)
+## Stažení hotového pluginu
 
-GitHub ho sestaví sám po každém pushi:
+GitHub ho sestaví sám po každé změně:
 
-1. Na GitHubu otevři záložku **Actions** → poslední běh **Build 808 KILLA (Windows VST3)**.
-2. Dole v sekci **Artifacts** stáhni **808-KILLA-VST3-Windows** (zip).
-3. Rozbal ho a složku **`808 KILLA.vst3`** zkopíruj do
-   `C:\Program Files\Common Files\VST3`
-4. Ve FL Studiu: *Options → Manage plugins → Find more plugins* (rescan) a přidej **808 KILLA**.
+1. Záložka **Actions** → poslední běh **Build 808 KILLA** se zelenou fajfkou.
+2. Dole v **Artifacts** stáhni:
+   - **808-KILLA-Installer-Windows** – instalátor (.exe), nainstaluje VST3 do `C:\Program Files\Common Files\VST3`
+   - nebo **808-KILLA-VST3-Windows** – samotná složka `808 KILLA.vst3` na ruční zkopírování
+   - **808-KILLA-Installer-macOS** – instalátor (.pkg) pro Mac (VST3 + AU)
+3. Ve FL Studiu: *Options → Manage plugins → Find more plugins*.
 
-## Build na vlastním PC (Visual Studio 2022 nebo novější)
+## Co umí (verze 0.2)
 
-Potřebuješ Visual Studio 2022 nebo novější s balíčkem **Desktop development with C++** (obsahuje i CMake).
-Při prvním buildu se automaticky stáhne knihovna JUCE (je potřeba internet).
+**SIMPLE stránka:** výběr stylu/presetu (◀ ▶), velký **KILL** a makra **LENGTH, PUNCH, DIRT, DUCK**,
+MASTER metr (peak + LUFS short-term) a **PHONE CHECK**.
 
-**Varianta A – dvojklik:**
-Otevři *Developer Command Prompt for VS*, přejdi do složky projektu a spusť `build.bat`.
-Po dokončení se otevře složka s `808 KILLA.vst3`.
+**ADVANCED stránka (záložky):**
 
-**Varianta B – ve Visual Studiu:**
-*File → Open → Folder…* → vyber tuhle složku → nahoře zvol konfiguraci **x64-Release** →
-*Build → Build All*.
-
-Výsledek: `build\K808_artefacts\Release\VST3\808 KILLA.vst3`
-
-## Ovládání
-
-| Prvek | Co dělá |
+| Záložka | Parametry |
 |---|---|
-| **PUNCH** | zvýrazní úder (transient) 808 |
-| **SUB** | zesílí sub basy (~70 Hz) |
-| **DISTORT** | síla zkreslení (drive) |
-| **CLIP** | jak tvrdě se signál ořezává |
-| **SHORT** | zkrátí dozvuk 808 (gate) |
-| **BOOST** | +6 dB do zkreslení |
-| **HARD CLIP** | tvrdý clip místo měkkého |
-| **GRIT** | bitcrush / lo-fi špína |
-| **LOW MONO** | basy pod 120 Hz do mono |
-| **COOK** | extra saturační stupeň |
-| **TYPE** | charakter zkreslení (SPINZ, ZAY, SHORT, BOOST, CRUNCH, RAGE, DIRTY, SUB) |
-| **MODE** | celkový mód (CLEAN, CLIPPED, UNDERGROUND, DEEP, DESTROY) |
-| **MIX** | poměr čistého a zpracovaného signálu |
-| **OUTPUT** | výstupní hlasitost −24…+24 dB |
-| **LIMITER / CEILING** | limiter na výstupu se stropem −12…0 dB |
+| SHAPE | Punch, Click, Length (zkrácení i prodloužení dozvuku) |
+| TONE | Sub, Harmonics, Tilt, Filter (LP 12/24 dB, cutoff, resonance) |
+| DIRT | Soft / Hard Clip / Tape / Tube / Foldback / Bitcrush, Drive, Mix, Crush, Post filter, Clean Low, Auto gain, Oversampling 2×/4×/8× |
+| DUCK | Kick duck přes sidechain: Amount, Release, Shape |
+| OUTPUT | Input, Clipper, Ceiling, Mono below, Output, Dry/Wet |
+| SETTINGS | verze, složka presetů |
 
-Knoby se ovládají tažením myší nahoru/dolů, dvojklik vrátí výchozí hodnotu.
-Okno pluginu jde zvětšit/zmenšit tažením za pravý dolní roh.
+**Styly:** Atlanta Clean, Memphis Phonk, Rage Underground, Detroit Clip, Drill Chicago, Drill NY, Drill UK,
+Plugg Soft, Chicago Boom, Classic Trap Boom.
+**Technické presety:** Clean Sub, Knock Punch, Plugg Bounce, Phone Punch, Dirty Knock, Lo-Fi Muffle, Motor City Chop.
 
-## Struktura projektu
+Vlastní presety: tlačítko **SAVE** → uloží se jako `.808k` do `Documents\808 KILLA\Presets`
+(Mac: `~/Music/808 KILLA/Presets`).
 
-- `Source/PluginProcessor.*` – zvukové zpracování
-- `Source/PluginEditor.*` – grafika a ovládací prvky
-- `Resources/background.png` – pozadí (vygenerované z návrhu)
-- `Resources/source/design.png` – původní návrh
-- `tools/make_background.py` – z návrhu odstraní ručičky/LEDky, které plugin kreslí živě
+**Sidechain ve FL Studiu (DUCK):** na mixer tracku s kickem klikni pravým na šipku k tracku s 808 →
+*Sidechain to this track*. Pak v 808 KILLA zvol sidechain vstup. Bez sidechainu je DUCK ztlumený.
+
+### Připravuje se (další fáze podle zadání)
+- Analyzátor tónu (nota + tónina) a **pitch efekty**: BEND, Slide, Pitch Knock, Octave Jump, Key Lock
+- WOBBLE, Stutter, Tape Stop
+- A/B porovnání, Undo/Redo, import/export presetů
+- Podepsání instalátorů (Windows code-signing, Mac notarizace)
+
+## Build na vlastním PC
+
+Visual Studio 2022 nebo novější s *Desktop development with C++*.
+Spusť `build.bat` z *Developer Command Prompt for VS*, nebo ve Visual Studiu *File → Open → Folder* a *Build All*.
+Výsledek: `build\K808_artefacts\Release\VST3\808 KILLA.vst3`. Testy: `build\tests\K808Tests_artefacts\Release\K808Tests.exe`.
+
+## Kontrola kvality (běží automaticky v GitHub Actions)
+
+- unit testy DSP (`tests/Tests.cpp`): všechny presety na 44,1–192 kHz, žádné NaN, offline = realtime,
+  bypass bez ztráty, ticho po zastavení, mono, sidechain, uložení stavu, 10 instancí, CPU
+- **pluginval** strictness 10 (Windows + Mac), **auval** (Mac)
+
+## Struktura
+
+- `Source/DSP/` – zvukové jádro (Engine, filtry)
+- `Source/Parameters.*` – parametry (ID se po vydání 1.0 nesmí měnit)
+- `Source/Presets.*` – factory presety + uživatelské presety
+- `Source/UI/`, `Source/PluginEditor.*` – grafika
+- `installer/` – instalátory (Inno Setup, pkg) a EULA
+- `tools/` – skripty, které z původního návrhu vyrobí pozadí a texturu knobů

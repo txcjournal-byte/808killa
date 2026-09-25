@@ -1,4 +1,4 @@
-# Regenerates Resources/background.png from the original design (Resources/source/design.png):
+# Step 1: cleans the original design (Resources/source/design.png) -> Resources/source/cleaned.png:
 # removes the painted knob pointers, value arcs, LEDs and fader caps so the plugin can draw them live.
 # Usage: pip install pillow numpy opencv-python-headless && python tools/make_background.py
 import os
@@ -51,4 +51,4 @@ def patch(x0,x1,y0,y1,shift,feather=6):
     out=np.clip(o,0,255).astype(np.uint8)
 patch(656,712,846,928,2*68)
 patch(1071,1128,846,928,2*62)
-Image.fromarray(out).save(os.path.join(ROOT,'Resources/background.png'))
+Image.fromarray(out).save(os.path.join(ROOT,'Resources/source/cleaned.png'))

@@ -2,313 +2,248 @@
 #include "BinaryData.h"
 
 using namespace juce;
+using namespace Look;
 
-namespace Colours808
-{
-    const Colour red       { 0xffcc1c15 };
-    const Colour redBright { 0xffff5a46 };
-    const Colour redGlow   { 0xffe0241c };
-    const Colour track     { 0xff121110 };
-    const Colour boxFill   { 0xff080808 };
-    const Colour boxEdge   { 0xff2e2c29 };
-    const Colour text      { 0xffe8e3d8 };
-}
-
-//==============================================================================
-void KnobLookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h, float pos,
-                                        float startAngle, float endAngle, Slider& slider)
-{
-    const auto& props = slider.getProperties();
-    const auto small = (bool) props["small"];
-    const auto arcR = (float) props["arcR"];
-    const auto pIn = (float) props["pIn"];
-    const auto pOut = (float) props["pOut"];
-
-    const auto cx = (float) x + (float) w * 0.5f;
-    const auto cy = (float) y + (float) h * 0.5f;
-    const auto angle = startAngle + pos * (endAngle - startAngle);
-
-    auto polar = [cx, cy] (float a, float r) { return Point<float> (cx + r * std::sin (a), cy - r * std::cos (a)); };
-
-    if (! small)
-    {
-        Path track;
-        track.addCentredArc (cx, cy, arcR, arcR, 0.0f, startAngle, endAngle, true);
-        g.setColour (Colours808::track);
-        g.strokePath (track, PathStrokeType (10.0f, PathStrokeType::curved, PathStrokeType::butt));
-
-        if (pos > 0.002f)
-        {
-            Path value;
-            value.addCentredArc (cx, cy, arcR, arcR, 0.0f, startAngle, angle, true);
-            g.setColour (Colours808::redGlow.withAlpha (0.22f));
-            g.strokePath (value, PathStrokeType (18.0f, PathStrokeType::curved, PathStrokeType::rounded));
-            g.setColour (Colours808::red);
-            g.strokePath (value, PathStrokeType (7.0f, PathStrokeType::curved, PathStrokeType::butt));
-            g.setColour (Colours808::redBright.withAlpha (0.7f));
-            g.strokePath (value, PathStrokeType (2.0f, PathStrokeType::curved, PathStrokeType::butt));
-        }
-
-        const Line<float> pointer (polar (angle, pIn), polar (angle, pOut));
-        g.setColour (Colours808::redGlow.withAlpha (0.25f));
-        g.drawLine (pointer, 15.0f);
-        g.setColour (Colours::black.withAlpha (0.55f));
-        g.drawLine (pointer.withShortenedStart (-1.0f).withShortenedEnd (-1.0f), 10.0f);
-        g.setColour (Colours808::red);
-        g.drawLine (pointer, 7.5f);
-        g.setColour (Colour (0xffff7a66).withAlpha (0.85f));
-        g.drawLine (pointer, 2.2f);
-    }
-    else
-    {
-        const Line<float> pointer (polar (angle, pIn), polar (angle, pOut));
-        g.setColour (Colours::black.withAlpha (0.6f));
-        g.drawLine (pointer, 6.0f);
-        g.setColour (Colour (0xffe9e3d6));
-        g.drawLine (pointer, 3.5f);
-    }
-}
-
-Slider::SliderLayout KnobLookAndFeel::getSliderLayout (Slider& slider)
-{
-    if (slider.isHorizontal())
-    {
-        Slider::SliderLayout layout;
-        layout.sliderBounds = slider.getLocalBounds().reduced (15, 0);
-        return layout;
-    }
-
-    return LookAndFeel_V4::getSliderLayout (slider);
-}
-
-void KnobLookAndFeel::drawLinearSlider (Graphics& g, int x, int, int w, int, float pos, float, float,
-                                        Slider::SliderStyle, Slider& slider)
-{
-    const auto cy = (float) slider.getHeight() * 0.5f + 1.0f;
-    const Rectangle<float> groove ((float) x - 2.0f, cy - 9.0f, (float) w + 4.0f, 18.0f);
-
-    g.setColour (Colour (0xff050505));
-    g.fillRoundedRectangle (groove.expanded (1.5f), 9.5f);
-    g.setGradientFill (ColourGradient (Colour (0xff1c1b1a), 0.0f, groove.getY(),
-                                       Colour (0xff0c0c0c), 0.0f, groove.getBottom(), false));
-    g.fillRoundedRectangle (groove, 9.0f);
-    g.setColour (Colour (0x30ffffff));
-    g.drawHorizontalLine ((int) groove.getBottom() - 1, groove.getX() + 8.0f, groove.getRight() - 8.0f);
-
-    const Rectangle<float> fill (groove.getX() + 6.0f, cy - 2.0f, jmax (0.0f, pos - groove.getX() - 6.0f), 4.0f);
-    g.setColour (Colours808::redGlow.withAlpha (0.25f));
-    g.fillRoundedRectangle (fill.expanded (0.0f, 3.0f), 3.0f);
-    g.setColour (Colours808::red);
-    g.fillRoundedRectangle (fill, 2.0f);
-
-    // metal fader cap
-    const auto cap = Rectangle<float> (26.0f, 58.0f).withCentre ({ pos, cy });
-    g.setColour (Colours::black.withAlpha (0.4f));
-    g.fillRoundedRectangle (cap.translated (3.0f, 4.0f).expanded (1.0f), 5.0f);
-
-    ColourGradient body (Colour (0xffe6e1d6), cap.getX(), 0.0f, Colour (0xff57534d), cap.getRight(), 0.0f, false);
-    body.addColour (0.45, Colour (0xffb3ada2));
-    g.setGradientFill (body);
-    g.fillRoundedRectangle (cap, 4.0f);
-
-    const auto face = cap.reduced (5.0f, 8.0f);
-    g.setGradientFill (ColourGradient (Colour (0xffd9d3c7), 0.0f, face.getY(), Colour (0xff8a847a), 0.0f, face.getBottom(), false));
-    g.fillRoundedRectangle (face, 2.0f);
-    g.setColour (Colours::white.withAlpha (0.35f));
-    g.drawLine (face.getX(), face.getY(), face.getRight(), face.getY(), 1.0f);
-
-    g.setColour (Colour (0xff2c2a27));
-    g.fillRect (Rectangle<float> (face.getWidth() - 2.0f, 2.0f).withCentre ({ pos, cy }));
-    g.setColour (Colour (0xff1a1917));
-    g.drawRoundedRectangle (cap, 4.0f, 1.2f);
-}
-
-//==============================================================================
-void ValueBox::paint (Graphics& g)
-{
-    const auto r = getLocalBounds().toFloat();
-    g.setColour (Colours808::boxFill);
-    g.fillRoundedRectangle (r, 2.0f);
-    g.setColour (Colours808::boxEdge);
-    g.drawRoundedRectangle (r.reduced (0.5f), 2.0f, 1.0f);
-    // shrink the font if the text would not fit (e.g. "-24.0 dB")
-    const auto text = getText();
-    auto f = font;
-    while (f.getHeight() > 8.0f && GlyphArrangement::getStringWidth (f, text) > (float) getWidth() - 8.0f)
-        f = f.withHeight (f.getHeight() - 1.0f);
-
-    g.setColour (Colours808::text);
-    g.setFont (f);
-    g.drawText (text, getLocalBounds(), Justification::centred, false);
-}
-
-//==============================================================================
-LedButton::LedButton (const String& name, Point<float> ledCentreLocal, float ledSize)
-    : Button (name), ledCentre (ledCentreLocal), size (ledSize)
-{
-    setClickingTogglesState (true);
-    setMouseCursor (MouseCursor::PointingHandCursor);
-}
-
-void LedButton::paintButton (Graphics& g, bool, bool)
-{
-    const auto on = getToggleState();
-    const auto led = Rectangle<float> (size, size).withCentre (ledCentre);
-
-    g.setColour (Colour (0xff060606));
-    g.fillRoundedRectangle (led.expanded (3.5f), 3.0f);
-
-    if (on)
-    {
-        const auto glowR = size * 2.2f;
-        g.setGradientFill (ColourGradient (Colours808::redGlow.withAlpha (0.5f), ledCentre,
-                                           Colours808::redGlow.withAlpha (0.0f), ledCentre.translated (glowR, 0.0f), true));
-        g.fillEllipse (Rectangle<float> (glowR * 2.0f, glowR * 2.0f).withCentre (ledCentre));
-
-        g.setGradientFill (ColourGradient (Colour (0xffffe0d6), ledCentre,
-                                           Colour (0xffd0140c), ledCentre.translated (size * 0.62f, 0.0f), true));
-        g.fillRoundedRectangle (led, 2.0f);
-    }
-    else
-    {
-        g.setGradientFill (ColourGradient (Colour (0xff4a0e0a), ledCentre,
-                                           Colour (0xff170403), ledCentre.translated (size * 0.62f, 0.0f), true));
-        g.fillRoundedRectangle (led, 2.0f);
-        g.setColour (Colours::white.withAlpha (0.12f));
-        g.fillEllipse (led.reduced (size * 0.3f).translated (-size * 0.12f, -size * 0.12f));
-    }
-}
-
-//==============================================================================
-SegmentSelector::SegmentSelector (RangedAudioParameter& param, StringArray segmentNames,
-                                  std::vector<int> edgesX, int topY, int bottomY, Font f)
-    : names (std::move (segmentNames)), edges (std::move (edgesX)), top (topY), bottom (bottomY), font (f),
-      attachment (param, [this] (float v) { selected = roundToInt (v); repaint(); }, nullptr)
-{
-    setBounds (edges.front() - margin, top - margin, edges.back() - edges.front() + 2 * margin, bottom - top + 2 * margin);
-    setMouseCursor (MouseCursor::PointingHandCursor);
-    attachment.sendInitialUpdate();
-}
-
-Rectangle<float> SegmentSelector::segment (int i) const
-{
-    const auto x0 = (float) (edges[(size_t) i] - edges.front() + margin);
-    const auto x1 = (float) (edges[(size_t) i + 1] - edges.front() + margin);
-    return { x0 + 1.0f, (float) margin, x1 - x0 - 2.0f, (float) (bottom - top) };
-}
-
-void SegmentSelector::paint (Graphics& g)
-{
-    g.setColour (Colour (0xff050505));
-    g.fillRect (Rectangle<float> ((float) margin - 1.0f, (float) margin - 1.0f,
-                                  (float) (edges.back() - edges.front()) + 2.0f, (float) (bottom - top) + 2.0f));
-
-    for (int i = 0; i < names.size(); ++i)
-    {
-        const auto r = segment (i);
-
-        if (i == selected)
-            continue;
-
-        g.setGradientFill (ColourGradient (Colour (0xff171716), 0.0f, r.getY(), Colour (0xff0a0a0a), 0.0f, r.getBottom(), false));
-        g.fillRect (r);
-        g.setColour (Colours::black);
-        g.drawRect (r, 1.0f);
-        g.setColour (Colour (0xff8b877f).withAlpha (0.5f));
-        g.drawRect (r.reduced (3.0f), 1.2f);
-        g.setColour (Colour (0xffd9d4ca));
-        g.setFont (font);
-        g.drawText (names[i], r, Justification::centred, false);
-    }
-
-    if (isPositiveAndBelow (selected, names.size()))
-    {
-        const auto r = segment (selected);
-
-        for (int k = 3; k > 0; --k)
-        {
-            g.setColour (Colours808::redGlow.withAlpha (0.09f));
-            g.fillRoundedRectangle (r.expanded ((float) k * 3.5f), 4.0f + (float) k * 2.0f);
-        }
-
-        g.setGradientFill (ColourGradient (Colour (0xffa3170f), r.getCentreX(), r.getCentreY(),
-                                           Colour (0xff4d0604), r.getX(), r.getY(), true));
-        g.fillRect (r);
-        g.setColour (Colour (0xff2a0303));
-        g.drawRect (r, 1.0f);
-        g.setColour (Colour (0xffff4b3c));
-        g.drawRect (r.reduced (3.0f), 1.6f);
-        g.setColour (Colour (0xffffe5de));
-        g.setFont (font);
-        g.drawText (names[selected], r, Justification::centred, false);
-    }
-}
-
-void SegmentSelector::mouseDown (const MouseEvent& e)
-{
-    for (int i = 0; i < names.size(); ++i)
-    {
-        if (segment (i).contains (e.position))
-        {
-            attachment.setValueAsCompleteGesture ((float) i);
-            return;
-        }
-    }
-}
-
-//==============================================================================
 namespace
 {
-    // dB -> y (design coordinates), matching the printed MASTER scale
-    float meterY (float db)
+    // design-space layout (1536 x 1024, matches the artwork)
+    const Rectangle<int> topBarArea  { 452, 88, 1044, 72 };
+    const Rectangle<int> contentArea { 460, 172, 906, 816 };
+    const Rectangle<int> meterArea   { 1378, 172, 116, 816 };
+
+    const char* describe (const String& preset)
     {
-        static constexpr float dbs[] = { 3.0f, 0.0f, -6.0f, -12.0f, -24.0f, -48.0f, -60.0f };
-        static constexpr float ys[]  = { 160.0f, 167.0f, 231.0f, 294.0f, 362.0f, 430.0f, 466.0f };
-
-        if (db >= dbs[0]) return ys[0];
-        for (int i = 1; i < 7; ++i)
-            if (db >= dbs[i])
-                return jmap (db, dbs[i], dbs[i - 1], ys[i], ys[i - 1]);
-        return ys[6] + 1.0f;
+        static const std::map<String, const char*> text = {
+            { "Atlanta Clean",     "Clean, long and punchy. The sub stays pure." },
+            { "Memphis Phonk",     "Dirty and lo-fi: overdriven tape and crushed bits." },
+            { "Rage Underground",  "Heavy foldback saturation, clipped hard." },
+            { "Detroit Clip",      "Aggressive, short and clipped very hard." },
+            { "Drill Chicago",     "Short and hard with a strong knock." },
+            { "Drill NY",          "Short and hard with a clipped edge." },
+            { "Drill UK",          "Hard with warm tape grit." },
+            { "Plugg Soft",        "Soft, almost a pure sine with extra sub." },
+            { "Chicago Boom",      "Long, thick and warm." },
+            { "Classic Trap Boom", "Big boom with a long tail." },
+            { "Clean Sub",         "Only firms up the low end. No distortion." },
+            { "Knock Punch",       "Strong attack and click." },
+            { "Plugg Bounce",      "Short and bouncy with a touch of tube." },
+            { "Phone Punch",       "Extra harmonics so the 808 cuts through on phones." },
+            { "Dirty Knock",       "Hard clipped knock with a clean sub underneath." },
+            { "Lo-Fi Muffle",      "Muffled, crushed and dark." },
+            { "Motor City Chop",   "Chopped short and clipped." },
+        };
+        const auto it = text.find (preset);
+        return it != text.end() ? it->second : "Your own preset.";
     }
-
-    const Rectangle<int> meterBounds { 1376, 156, 92, 314 };
-    constexpr int barX[] = { 1380, 1400, 1429, 1448 };
 }
 
-void MasterMeter::setLevels (const float newLevelsDb[4])
+//==============================================================================
+SimplePage::SimplePage (K808Processor& p)
+    : kill   (p.apvts, ParamIDs::kill,   "KILL",   "One knob to push the whole style: more dirt, punch, sub and clipping."),
+      length (p.apvts, ParamIDs::length, "LENGTH", "Shorten (left) or stretch (right) the tail of every 808 note.", true),
+      punch  (p.apvts, ParamIDs::punch,  "PUNCH",  "Boosts the start of every note so the 808 hits harder."),
+      dirt   (p.apvts, ParamIDs::dirt,   "DIRT",   "Amount of distortion. The type of dirt is set by the style (ADVANCED > DIRT)."),
+      duck   (p.apvts, ParamIDs::duck,   "DUCK",   "Ducks the 808 under the kick. Needs the kick routed to the sidechain input.")
 {
-    for (int i = 0; i < 4; ++i)
-        levels[i] = newLevelsDb[i];
+    for (auto* k : { &kill, &length, &punch, &dirt, &duck })
+        addAndMakeVisible (*k);
+
+    kill.setKnobArea ({ 283, 150, 340, 340 }, 48.0f);
+    length.setKnobArea ({ 55, 95, 160, 160 }, 32.0f);
+    punch.setKnobArea ({ 55, 430, 160, 160 }, 32.0f);
+    dirt.setKnobArea ({ 691, 95, 160, 160 }, 32.0f);
+    duck.setKnobArea ({ 691, 430, 160, 160 }, 32.0f);
+}
+
+void SimplePage::setStyleText (const String& title, const String& description)
+{
+    if (title == styleTitle && description == styleDescription)
+        return;
+    styleTitle = title;
+    styleDescription = description;
     repaint();
 }
 
-void MasterMeter::paint (Graphics& g)
+void SimplePage::paint (Graphics& g)
 {
-    g.fillAll (Colour (0xff0b0b0b));
+    const auto r = getLocalBounds().toFloat();
+    drawPanel (g, r);
 
-    const auto ox = (float) meterBounds.getX();
-    const auto oy = (float) meterBounds.getY();
+    // style description under KILL
+    const Rectangle<float> info (150.0f, 660.0f, r.getWidth() - 300.0f, 110.0f);
+    drawPanel (g, info, true);
+    g.setColour (Palette::redBright);
+    g.setFont (fonts->bold (34.0f));
+    g.drawText (styleTitle.toUpperCase(), info.withHeight (58.0f).translated (0.0f, 8.0f), Justification::centred, false);
+    g.setColour (Palette::text);
+    g.setFont (fonts->sans (21.0f));
+    g.drawText (styleDescription, info.withTrimmedTop (60.0f).withTrimmedBottom (14.0f), Justification::centred, false);
+}
 
-    for (int bar = 0; bar < 4; ++bar)
+//==============================================================================
+template <typename T, typename... Args>
+T& AdvancedPage::add (int tab, Rectangle<int> bounds, Args&&... args)
+{
+    auto* c = new T (std::forward<Args> (args)...);
+    owned.add (c);
+    addChildComponent (*c);
+    c->setBounds (bounds);
+    tabs[(size_t) tab].controls.push_back (c);
+    return *c;
+}
+
+UI::Knob& AdvancedPage::knob (int tab, int col, int row, const String& id, const String& label, const String& tip, bool bipolar)
+{
+    auto* k = new UI::Knob (processor.apvts, id, label, tip, bipolar);
+    owned.add (k);
+    addChildComponent (*k);
+    k->setKnobArea ({ 70 + col * 160, 190 + row * 270, 120, 120 }, 26.0f);
+    tabs[(size_t) tab].controls.push_back (k);
+    return *k;
+}
+
+AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
+{
+    using namespace ParamIDs;
+    auto& s = p.apvts;
+
+    tabs = {
+        { "PITCH",    {},       "Pitch FX (bend, slide, knock, octave jump, key lock) arrive in the next update.", {} },
+        { "SHAPE",    shapeOn,  {}, {} },
+        { "WOBBLE",   {},       "Wobble (pitch / volume / filter LFO) arrives in the next update.", {} },
+        { "TONE",     toneOn,   {}, {} },
+        { "DIRT",     dirtOn,   {}, {} },
+        { "DUCK",     duckOn,   "Route your kick to the sidechain input of 808 KILLA (FL Studio: kick mixer track > "
+                                "'Sidechain to this track' on the 808 track, then pick it as the plugin's sidechain input).", {} },
+        { "OUTPUT",   {},       {}, {} },
+        { "SETTINGS", {},       {}, {} },
+    };
+
+    for (int i = 0; i < (int) tabs.size(); ++i)
     {
-        const auto levelY = meterY (levels[bar]);
-        const auto isOut = bar >= 2;
+        auto* b = tabButtons.add (new UI::FlatButton (tabs[(size_t) i].name));
+        b->textHeight = 19.0f;
+        b->setBounds (12 + i * 110, 14, 108, 46);
+        b->onClick = [this, i] { showTab (i); };
+        addAndMakeVisible (b);
 
-        for (float y = 463.0f; y >= 160.0f; y -= 5.0f)
+        if (tabs[(size_t) i].sectionParam.isNotEmpty())
         {
-            const Rectangle<float> slat ((float) barX[bar] - ox, y - oy, 16.0f, 3.2f);
-            const auto lit = y + 1.5f >= levelY;
-
-            if (! lit)
-                g.setColour (Colour (0xff2a2927));
-            else if (isOut && y < meterY (-12.0f))
-                g.setColour (Colours808::red);
-            else
-                g.setColour (Colour (0xffd8d2c6));
-
-            g.fillRect (slat);
+            sectionToggles[i] = std::make_unique<UI::LedToggle> (s, tabs[(size_t) i].sectionParam, "ON", "Switch this whole section on or off.");
+            sectionToggles[i]->setBounds (632, 82, 120, 44);
+            addChildComponent (*sectionToggles[i]);
         }
+    }
+
+    resetButton.setBounds (764, 82, 120, 44);
+    resetButton.setTooltip ("Reset every control on this tab to its default.");
+    resetButton.onClick = [this]
+    {
+        for (auto& id : sectionParameters (tabs[(size_t) current].name))
+            if (auto* param = processor.apvts.getParameter (id))
+            {
+                param->beginChangeGesture();
+                param->setValueNotifyingHost (param->getDefaultValue());
+                param->endChangeGesture();
+            }
+    };
+    addChildComponent (resetButton);
+
+    // ---- SHAPE
+    knob (1, 0, 0, punch, "PUNCH", "Boosts the attack of every note.");
+    knob (1, 1, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
+    knob (1, 2, 0, length, "LENGTH", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
+
+    // ---- TONE
+    knob (3, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
+    knob (3, 1, 0, harmonics, "HARMONICS", "Adds upper harmonics so the 808 is heard on small speakers.");
+    knob (3, 2, 0, tilt, "TILT", "Tilts the tone darker (left) or brighter (right).", true);
+    add<UI::LedToggle> (3, { 40, 470, 220, 54 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
+    knob (3, 2, 1, cutoff, "CUTOFF", "Low-pass cutoff frequency.");
+    knob (3, 3, 1, resonance, "RESO", "Resonance at the cutoff.");
+    add<UI::ChoiceSelector> (3, { 40, 550, 220, 54 }, s, slope, "Filter steepness.");
+
+    // ---- DIRT
+    add<UI::ChoiceSelector> (4, { 40, 150, 826, 56 }, s, dirtMode, "Type of distortion.");
+    knob (4, 0, 1, dirt, "DRIVE", "How hard the 808 is pushed into the distortion.");
+    knob (4, 1, 1, dirtMix, "DIRT MIX", "Blend between clean and distorted 808.");
+    knob (4, 2, 1, crushBits, "CRUSH", "Bit reduction for lo-fi grit (24 = off).");
+    knob (4, 3, 1, postFilter, "POST FILTER", "Low-pass after the distortion to tame fizz.");
+    knob (4, 4, 1, cleanFreq, "CLEAN FREQ", "Below this frequency the sub stays clean when CLEAN LOW is on.");
+    for (auto* c : tabs[4].controls)
+        if (auto* k = dynamic_cast<UI::Knob*> (c))
+            k->setTopLeftPosition (k->getX(), k->getY() - 150);
+    add<UI::LedToggle> (4, { 40, 610, 200, 54 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
+    add<UI::LedToggle> (4, { 260, 610, 200, 54 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
+    add<UI::ChoiceSelector> (4, { 560, 610, 306, 54 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
+
+    // ---- DUCK
+    knob (5, 0, 0, duck, "DUCK", "How much the 808 ducks under the kick.");
+    knob (5, 1, 0, duckRel, "RELEASE", "How fast the 808 comes back after the kick.");
+    knob (5, 2, 0, duckShape, "SHAPE", "Soft (left) or hard (right) ducking curve.");
+
+    // ---- OUTPUT
+    knob (6, 0, 0, inGain, "INPUT", "Level going into the plugin.", true);
+    knob (6, 1, 0, clipper, "CLIPPER", "Soft to hard clipping at the ceiling. 0 = off.");
+    knob (6, 2, 0, ceiling, "CEILING", "Maximum output level of the clipper.");
+    knob (6, 3, 0, outGain, "OUTPUT", "Output level.", true);
+    knob (6, 4, 0, mix, "MIX", "Dry / wet mix of the whole plugin.");
+    knob (6, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
+
+    // ---- SETTINGS
+    openFolderButton.setBounds (40, 330, 360, 54);
+    openFolderButton.onClick = [] { PresetManager::userFolder().createDirectory(); PresetManager::userFolder().startAsProcess(); };
+    addChildComponent (openFolderButton);
+    tabs[7].controls.push_back (&openFolderButton);
+
+    showTab (4);
+}
+
+void AdvancedPage::showTab (int index)
+{
+    current = jlimit (0, (int) tabs.size() - 1, index);
+
+    for (int i = 0; i < (int) tabs.size(); ++i)
+    {
+        tabButtons[i]->active = i == current;
+        tabButtons[i]->repaint();
+        for (auto* c : tabs[(size_t) i].controls)
+            c->setVisible (i == current);
+        if (sectionToggles[i] != nullptr)
+            sectionToggles[i]->setVisible (i == current);
+    }
+
+    resetButton.setVisible (! sectionParameters (tabs[(size_t) current].name).isEmpty());
+    repaint();
+}
+
+void AdvancedPage::paint (Graphics& g)
+{
+    const auto r = getLocalBounds().toFloat();
+    drawPanel (g, r);
+
+    const auto& tab = tabs[(size_t) current];
+    drawLabel (g, tab.name, { 40.0f, 80.0f, 400.0f, 48.0f }, 44.0f, Palette::ink, Justification::centredLeft);
+
+    if (tab.note.isNotEmpty())
+    {
+        const Rectangle<float> box (40.0f, tab.controls.empty() ? 160.0f : 640.0f, r.getWidth() - 80.0f, 110.0f);
+        drawPanel (g, box, true);
+        g.setColour (Palette::text);
+        g.setFont (fonts->sans (21.0f));
+        g.drawFittedText (tab.note, box.reduced (20.0f, 10.0f).toNearestInt(), Justification::centredLeft, 4);
+    }
+
+    if (tab.name == "SETTINGS")
+    {
+        const Rectangle<float> box (40.0f, 150.0f, r.getWidth() - 80.0f, 160.0f);
+        drawPanel (g, box, true);
+        g.setColour (Palette::text);
+        g.setFont (fonts->sans (21.0f));
+        const auto text = String ("808 KILLA  v") + JucePlugin_VersionString + "\n"
+                          + "User presets: " + PresetManager::userFolder().getFullPathName() + "\n"
+                          + "Double-click a knob = default value.  Ctrl / Cmd + drag = fine adjustment.";
+        g.drawFittedText (text, box.reduced (20.0f, 14.0f).toNearestInt(), Justification::topLeft, 5);
     }
 }
 
@@ -323,75 +258,111 @@ void Canvas::paint (Graphics& g)
 {
     g.setImageResamplingQuality (Graphics::highResamplingQuality);
     g.drawImageAt (background, 0, 0);
+
+    drawPanel (g, topBarArea.toFloat());
+    drawPanel (g, meterArea.toFloat(), true);
+
+    g.setColour (Palette::text);
+    g.setFont (fonts->bold (26.0f));
+    g.drawText ("MASTER", meterArea.toFloat().withHeight (46.0f).translated (0.0f, 6.0f), Justification::centred, false);
+
+
+    // version in the title bar (covers the artwork's static text)
+    const Rectangle<float> title (1060.0f, 32.0f, 290.0f, 30.0f);
+    g.setColour (Colour (0xff0c0c0b));
+    g.fillRect (title);
+    g.setColour (Colour (0xffd9d4ca));
+    g.setFont (fonts->mono (19.0f));
+    g.drawText ("LOW END DAMAGE UNIT / REV " + String (JucePlugin_VersionString).upToLastOccurrenceOf (".", false, false),
+                title, Justification::centredRight, false);
+}
+
+void Canvas::paintOverChildren (Graphics& g)
+{
+    if (phoneOn)
+    {
+        const Rectangle<float> banner ((float) contentArea.getX() + 190.0f, (float) contentArea.getY() + 12.0f, 526.0f, 34.0f);
+        g.setColour (Palette::red);
+        g.fillRect (banner);
+        g.setColour (Colours::white);
+        g.setFont (fonts->bold (24.0f));
+        g.drawText ("PHONE CHECK ON  -  TURN OFF BEFORE EXPORT", banner, Justification::centred, false);
+    }
 }
 
 //==============================================================================
 K808Editor::K808Editor (K808Processor& p)
-    : AudioProcessorEditor (p), processor (p)
+    : AudioProcessorEditor (p), processor (p),
+      simple (p), advanced (p),
+      phoneButton (p.apvts, ParamIDs::phone, "PHONE CHECK", "Listen like on a phone speaker. Monitoring only: switch it off before you export!")
 {
-    auto mono = Typeface::createSystemTypefaceFor (BinaryData::ShareTechMonoRegular_ttf, BinaryData::ShareTechMonoRegular_ttfSize);
-    auto sans = Typeface::createSystemTypefaceFor (BinaryData::ShareTechRegular_ttf, BinaryData::ShareTechRegular_ttfSize);
-    monoFont = Font (FontOptions (mono));
-    buttonFont = Font (FontOptions (sans).withHeight (22.0f));
+    setLookAndFeel (&lnf);
+    tooltips.setLookAndFeel (&lnf);
 
     addAndMakeVisible (canvas);
     canvas.setBounds (0, 0, designWidth, designHeight);
 
-    auto percent = [] (double v) { return String (roundToInt (v * 100.0)); };
-    auto decibels = [] (double v) { return String (std::abs (v) < 0.05 ? 0.0 : v, 1) + " dB"; };
+    // ---- top bar
+    const auto bar = topBarArea.reduced (10, 10);
+    simpleTab.setBounds (bar.getX(), bar.getY(), 130, bar.getHeight());
+    advancedTab.setBounds (bar.getX() + 134, bar.getY(), 150, bar.getHeight());
+    prevButton.setBounds (bar.getX() + 310, bar.getY(), 52, bar.getHeight());
+    presetButton.setBounds (bar.getX() + 366, bar.getY(), 440, bar.getHeight());
+    nextButton.setBounds (bar.getX() + 810, bar.getY(), 52, bar.getHeight());
+    saveButton.setBounds (bar.getRight() - 150, bar.getY(), 150, bar.getHeight());
 
-    // ---- big knobs
-    addKnob (ParamIDs::punch,   { 570, 262 },  105.0f, 26.0f, 78.0f, false, { 537, 355, 66, 30 }, percent);
-    addKnob (ParamIDs::sub,     { 796, 264 },  100.0f, 26.0f, 78.0f, false, { 763, 355, 66, 30 }, percent);
-    addKnob (ParamIDs::distort, { 1018, 262 }, 101.0f, 26.0f, 78.0f, false, { 983, 355, 66, 30 }, percent);
-    addKnob (ParamIDs::clip,    { 1237, 264 }, 99.0f,  26.0f, 78.0f, false, { 1202, 355, 66, 30 }, percent);
+    presetButton.textHeight = 26.0f;
+    prevButton.setTooltip ("Previous preset");
+    nextButton.setTooltip ("Next preset");
+    presetButton.setTooltip ("Pick a style or preset");
+    saveButton.setTooltip ("Save the current sound as your own preset");
+    simpleTab.setTooltip ("Main page: style, KILL and the macros");
+    advancedTab.setTooltip ("Every parameter, sorted in tabs");
 
-    // ---- switches
-    addLed (ParamIDs::shortEnv, { 465, 454, 99, 57 },  { 538.0f, 484.0f }, 15.0f);
-    addLed (ParamIDs::boost,    { 601, 454, 99, 57 },  { 673.0f, 481.0f }, 15.0f);
-    addLed (ParamIDs::hardClip, { 749, 454, 117, 57 }, { 838.0f, 483.0f }, 15.0f);
-    addLed (ParamIDs::grit,     { 914, 454, 100, 57 }, { 988.0f, 483.0f }, 15.0f);
-    addLed (ParamIDs::lowMono,  { 1056, 454, 118, 57 }, { 1148.0f, 483.0f }, 15.0f);
-    addLed (ParamIDs::cook,     { 1218, 454, 110, 57 }, { 1297.0f, 480.0f }, 15.0f);
+    simpleTab.onClick = [this] { showPage (false); };
+    advancedTab.onClick = [this] { showPage (true); };
+    prevButton.onClick = [this] { processor.presets.loadNext (-1); refreshPresetLabel(); };
+    nextButton.onClick = [this] { processor.presets.loadNext (1); refreshPresetLabel(); };
+    presetButton.onClick = [this] { showPresetMenu(); };
+    saveButton.onClick = [this] { savePresetAs(); };
 
-    // ---- TYPE / MODE
-    typeSelector = std::make_unique<SegmentSelector> (*processor.apvts.getParameter (ParamIDs::type),
-                                                      K808Processor::typeNames,
-                                                      std::vector<int> { 460, 590, 714, 838, 962, 1088, 1214, 1350, 1490 },
-                                                      591, 648, buttonFont);
-    modeSelector = std::make_unique<SegmentSelector> (*processor.apvts.getParameter (ParamIDs::mode),
-                                                      K808Processor::modeNames,
-                                                      std::vector<int> { 460, 655, 860, 1078, 1282, 1490 },
-                                                      716, 771, buttonFont);
-    canvas.addAndMakeVisible (*typeSelector);
-    canvas.addAndMakeVisible (*modeSelector);
+    for (auto* b : { &simpleTab, &advancedTab, &prevButton, &presetButton, &nextButton, &saveButton })
+        canvas.addAndMakeVisible (*b);
 
-    // ---- MIX / OUTPUT faders
-    addFader (ParamIDs::mix,    { 466, 852, 305, 70 }, { 773, 868, 58, 40 },
-              [] (double v) { return String (roundToInt (v)); });
-    addFader (ParamIDs::output, { 872, 852, 279, 70 }, { 1151, 868, 84, 40 }, decibels);
+    // ---- pages
+    simple.setBounds (contentArea);
+    advanced.setBounds (contentArea);
+    canvas.addAndMakeVisible (simple);
+    canvas.addChildComponent (advanced);
 
-    // ---- LIMITER / CEILING
-    addLed (ParamIDs::limiter, { 1279, 848, 69, 73 }, { 1320.0f, 878.0f }, 16.0f);
-    addKnob (ParamIDs::ceiling, { 1424, 879 }, 0.0f, 6.0f, 30.0f, true, { 1384, 931, 94, 37 }, decibels);
-
-    // ---- MASTER meter
+    // ---- master column
+    const auto m = meterArea.reduced (10, 0);
+    meter.setBounds (m.getX(), meterArea.getY() + 56, m.getWidth(), 520);
     canvas.addAndMakeVisible (meter);
-    meter.setBounds (meterBounds);
 
-    auto readout = [] (float db) { return db <= -60.0f ? String ("-inf") : String (db, 1); };
-    inReadout  = std::make_unique<ValueBox> ([this, readout] { return readout (readoutDb[0]); });
-    outReadout = std::make_unique<ValueBox> ([this, readout] { return readout (readoutDb[1]); });
-    for (auto* box : { inReadout.get(), outReadout.get() })
+    for (auto* l : { &lufsLabel, &peakLabel })
     {
-        box->font = monoFont.withHeight (24.0f);
-        canvas.addAndMakeVisible (*box);
+        l->setJustificationType (Justification::centred);
+        l->setColour (Label::textColourId, Palette::text);
+        l->setColour (Label::backgroundColourId, Palette::boxFill);
+        l->setColour (Label::outlineColourId, Palette::boxEdge);
+        l->setFont (lnf.fonts->mono (20.0f));
+        canvas.addAndMakeVisible (*l);
     }
-    inReadout->setBounds (1364, 503, 57, 29);
-    outReadout->setBounds (1429, 503, 57, 29);
+    peakLabel.setBounds (m.getX(), meterArea.getY() + 590, m.getWidth(), 36);
+    lufsLabel.setBounds (m.getX(), meterArea.getY() + 632, m.getWidth(), 36);
+    peakLabel.setTooltip ("Output peak (dBFS)");
+    lufsLabel.setTooltip ("Output loudness, short-term (LUFS)");
+
+    phoneButton.big = true;
+    phoneButton.setBounds (m.getX(), meterArea.getBottom() - 130, m.getWidth(), 118);
+    canvas.addAndMakeVisible (phoneButton);
+
+    showPage (false);
+    refreshPresetLabel();
 
     setResizable (true, true);
-    setResizeLimits (designWidth / 2, designHeight / 2, designWidth, designHeight);
+    setResizeLimits (designWidth / 2, designHeight / 2, designWidth * 3 / 2, designHeight * 3 / 2);
     getConstrainer()->setFixedAspectRatio ((double) designWidth / (double) designHeight);
     setSize (designWidth * 3 / 4, designHeight * 3 / 4);
 
@@ -401,81 +372,8 @@ K808Editor::K808Editor (K808Processor& p)
 K808Editor::~K808Editor()
 {
     stopTimer();
-    for (auto& k : knobs)
-        k->slider.setLookAndFeel (nullptr);
-}
-
-K808Editor::Knob& K808Editor::addKnob (const char* paramID, Point<int> centre, float arcRadius, float pointerIn,
-                                       float pointerOut, bool small, Rectangle<int> boxBounds,
-                                       std::function<String (double)> format)
-{
-    auto knob = std::make_unique<Knob>();
-    auto& s = knob->slider;
-
-    s.setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
-    s.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
-    s.setRotaryParameters (MathConstants<float>::pi * 1.25f, MathConstants<float>::pi * 2.75f, true);
-    s.setMouseDragSensitivity (220);
-    s.setLookAndFeel (&lnf);
-    s.getProperties().set ("small", small);
-    s.getProperties().set ("arcR", arcRadius);
-    s.getProperties().set ("pIn", pointerIn);
-    s.getProperties().set ("pOut", pointerOut);
-
-    const auto half = (int) (small ? pointerOut + 16.0f : arcRadius + 14.0f);
-    s.setBounds (centre.x - half, centre.y - half, half * 2, half * 2);
-    canvas.addAndMakeVisible (s);
-
-    knob->attachment = std::make_unique<SliderAttachment> (processor.apvts, paramID, s);
-
-    if (auto* param = processor.apvts.getParameter (paramID))
-        s.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
-
-    knob->box = std::make_unique<ValueBox> ([&s, format] { return format (s.getValue()); });
-    knob->box->font = monoFont.withHeight ((float) boxBounds.getHeight() * 0.8f);
-    knob->box->setBounds (boxBounds);
-    canvas.addAndMakeVisible (*knob->box);
-    s.onValueChange = [box = knob->box.get()] { box->repaint(); };
-
-    knobs.push_back (std::move (knob));
-    return *knobs.back();
-}
-
-K808Editor::Knob& K808Editor::addFader (const char* paramID, Rectangle<int> bounds, Rectangle<int> boxBounds,
-                                        std::function<String (double)> format)
-{
-    auto fader = std::make_unique<Knob>();
-    auto& s = fader->slider;
-
-    s.setSliderStyle (Slider::LinearHorizontal);
-    s.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
-    s.setLookAndFeel (&lnf);
-    s.setBounds (bounds);
-    canvas.addAndMakeVisible (s);
-
-    fader->attachment = std::make_unique<SliderAttachment> (processor.apvts, paramID, s);
-
-    if (auto* param = processor.apvts.getParameter (paramID))
-        s.setDoubleClickReturnValue (true, param->convertFrom0to1 (param->getDefaultValue()));
-
-    fader->box = std::make_unique<ValueBox> ([&s, format] { return format (s.getValue()); });
-    fader->box->font = monoFont.withHeight ((float) boxBounds.getHeight() * 0.72f);
-    fader->box->setBounds (boxBounds);
-    canvas.addAndMakeVisible (*fader->box);
-    s.onValueChange = [box = fader->box.get()] { box->repaint(); };
-
-    knobs.push_back (std::move (fader));
-    return *knobs.back();
-}
-
-void K808Editor::addLed (const char* paramID, Rectangle<int> bounds, Point<float> led, float ledSize)
-{
-    const auto area = bounds.expanded (22);
-    auto button = std::make_unique<LedButton> (paramID, led - area.getPosition().toFloat(), ledSize);
-    button->setBounds (area);
-    canvas.addAndMakeVisible (*button);
-    ledAttachments.push_back (std::make_unique<ButtonAttachment> (processor.apvts, paramID, *button));
-    leds.push_back (std::move (button));
+    tooltips.setLookAndFeel (nullptr);
+    setLookAndFeel (nullptr);
 }
 
 void K808Editor::paint (Graphics& g)
@@ -488,25 +386,146 @@ void K808Editor::resized()
     canvas.setTransform (AffineTransform::scale ((float) getWidth() / (float) designWidth));
 }
 
+void K808Editor::showPage (bool adv)
+{
+    simple.setVisible (! adv);
+    advanced.setVisible (adv);
+    simpleTab.active = ! adv;
+    advancedTab.active = adv;
+    simpleTab.repaint();
+    advancedTab.repaint();
+}
+
+void K808Editor::refreshPresetLabel()
+{
+    const auto name = processor.presets.getCurrentName();
+    const auto modified = processor.presets.isModified();
+    if (name == shownPreset && modified == shownModified)
+        return;
+
+    shownPreset = name;
+    shownModified = modified;
+    presetButton.setButtonText (name.toUpperCase() + (modified ? " *" : ""));
+
+    const auto index = processor.presets.getCurrentIndex();
+    const auto& list = processor.presets.getPresets();
+    const auto factory = isPositiveAndBelow (index, list.size()) && list.getReference (index).factory;
+    simple.setStyleText (name, factory ? describe (name) : "Your own preset.");
+}
+
+void K808Editor::showPresetMenu()
+{
+    auto& pm = processor.presets;
+    const auto& list = pm.getPresets();
+    const auto current = pm.getCurrentIndex();
+
+    PopupMenu menu;
+    std::map<String, PopupMenu> categories;
+    StringArray order { "Styles", "Clean", "Dirty", "Pitch", "FX", "User" };
+
+    for (int i = 0; i < list.size(); ++i)
+        categories[list.getReference (i).category].addItem (i + 1, list.getReference (i).name, true, i == current);
+
+    for (auto& cat : order)
+        if (categories.count (cat) > 0)
+        {
+            if (cat == "Styles")
+            {
+                menu.addSectionHeader ("STYLES");
+                for (PopupMenu::MenuItemIterator it (categories[cat]); it.next();)
+                    menu.addItem (it.getItem());
+            }
+            else
+            {
+                menu.addSubMenu (cat.toUpperCase(), categories[cat]);
+            }
+        }
+
+    menu.addSeparator();
+    menu.addItem (1001, "Save As...");
+    menu.addItem (1002, "Revert changes", pm.isModified() && current >= 0);
+    menu.addItem (1003, "Init (all defaults)");
+    menu.addItem (1004, "Open presets folder");
+
+    menu.showMenuAsync (PopupMenu::Options().withTargetComponent (&presetButton),
+                        [this] (int result)
+                        {
+                            auto& presets = processor.presets;
+                            if (result >= 1 && result <= 1000)  presets.load (result - 1);
+                            else if (result == 1001)            savePresetAs();
+                            else if (result == 1002)            presets.revert();
+                            else if (result == 1003)            presets.init();
+                            else if (result == 1004)
+                            {
+                                PresetManager::userFolder().createDirectory();
+                                PresetManager::userFolder().startAsProcess();
+                            }
+                            shownPreset = {};
+                            refreshPresetLabel();
+                        });
+}
+
+void K808Editor::savePresetAs()
+{
+    saveDialog = std::make_unique<AlertWindow> ("SAVE PRESET", "Name your preset:", MessageBoxIconType::NoIcon);
+    saveDialog->setLookAndFeel (&lnf);
+    saveDialog->addTextEditor ("name", processor.presets.getCurrentName());
+    saveDialog->addButton ("SAVE", 1, KeyPress (KeyPress::returnKey));
+    saveDialog->addButton ("CANCEL", 0, KeyPress (KeyPress::escapeKey));
+    saveDialog->enterModalState (true, ModalCallbackFunction::create ([this] (int result)
+    {
+        if (result == 1 && saveDialog != nullptr)
+        {
+            const auto name = saveDialog->getTextEditorContents ("name");
+            if (! processor.presets.saveUser (name))
+                AlertWindow::showMessageBoxAsync (MessageBoxIconType::WarningIcon, "808 KILLA", "Could not save the preset.");
+        }
+        saveDialog.reset();
+        shownPreset = {};
+        refreshPresetLabel();
+    }), false);
+}
+
 void K808Editor::timerCallback()
 {
-    const float peaks[4] = { processor.inPeak[0].exchange (0.0f), processor.inPeak[1].exchange (0.0f),
-                             processor.outPeak[0].exchange (0.0f), processor.outPeak[1].exchange (0.0f) };
+    auto& e = processor.engine;
+    const float peaks[2] = { e.inPeak.exchange (0.0f), e.outPeak.exchange (0.0f) };
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 2; ++i)
     {
         const auto db = Decibels::gainToDecibels (peaks[i], -100.0f);
         meterDb[i] = db >= meterDb[i] ? db : jmax (db, meterDb[i] - 1.2f);
     }
+    meter.setLevels (meterDb[0], meterDb[1]);
 
-    meter.setLevels (meterDb);
-
-    if (++readoutCounter >= 6)
+    const auto outDb = Decibels::gainToDecibels (peaks[1], -100.0f);
+    if (outDb >= peakHoldDb || --peakHoldTicks <= 0)
     {
-        readoutCounter = 0;
-        readoutDb[0] = jmax (meterDb[0], meterDb[1]);
-        readoutDb[1] = jmax (meterDb[2], meterDb[3]);
-        inReadout->repaint();
-        outReadout->repaint();
+        peakHoldDb = outDb;
+        peakHoldTicks = 45;
     }
+    peakLabel.setText (peakHoldDb <= -60.0f ? "-inf" : String (peakHoldDb, 1), dontSendNotification);
+
+    const auto lufs = e.shortTermLufs.load();
+    lufsLabel.setText (lufs <= -70.0f ? "-- LU" : String (lufs, 1) + " LU", dontSendNotification);
+
+    const auto phoneOn = processor.apvts.getRawParameterValue (ParamIDs::phone)->load() > 0.5f;
+    if (phoneOn != canvas.phoneOn)
+    {
+        canvas.phoneOn = phoneOn;
+        canvas.repaint();
+    }
+
+    // DUCK is only useful with a sidechain signal
+    const auto scActive = e.sidechainActive.load();
+    const auto duckAlpha = scActive ? 1.0f : 0.45f;
+    if (! approximatelyEqual (simple.duck.getAlpha(), duckAlpha))
+    {
+        simple.duck.setAlpha (duckAlpha);
+        simple.duck.getSlider().setTooltip (scActive
+            ? "Ducks the 808 under the kick."
+            : "No sidechain signal. Send your kick to this track's sidechain input to use DUCK.");
+    }
+
+    refreshPresetLabel();
 }

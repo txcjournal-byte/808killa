@@ -27,6 +27,17 @@ jobs:
           .\pluginval\pluginval.exe --strictness-level 10 --verbose --output-dir pluginval-logs --validate "build\K808_artefacts\Release\VST3\808 KILLA.vst3"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      - name: Crash stack (only when pluginval failed)
+        if: failure()
+        shell: pwsh
+        run: |
+          $cdb = "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"
+          if (-not (Test-Path $cdb)) { Write-Host "cdb not found"; Get-ChildItem "C:\Program Files (x86)\Windows Kits\10" -ErrorAction SilentlyContinue; exit 0 }
+          $sym = (Resolve-Path "build\K808_artefacts\Release\VST3\808 KILLA.vst3\Contents\x86_64-win").Path
+          $cmd = "sxe -c `".echo ===CRASH===;.ecxr;kb 60;~*kb 25;q`" av; sxe -c `".echo ===CRASH===;.ecxr;kb 60;q`" sov; sxe -c `".echo ===CRASH===;kb 60;q`" c0000409; sxe -c `".echo ===CRASH===;kb 60;q`" c0000374; sxe -c `".echo ===CPP-EXCEPTION===;kb 40;g`" eh; g"
+          & $cdb -G -o -y "$sym;srv*" -c $cmd .\pluginval\pluginval.exe --strictness-level 10 --validate-in-process --validate "build\K808_artefacts\Release\VST3\808 KILLA.vst3" 2>&1 | Select-String -Pattern "===|K808|808 KILLA|juce|pluginval!|Exception|exit|ExitProcess|k808" -Context 0,2 | Select-Object -First 400
+          exit 0
+
       - name: Upload pluginval logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4

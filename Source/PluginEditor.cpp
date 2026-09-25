@@ -407,6 +407,29 @@ void K808Editor::resized()
     processor.apvts.state.setProperty ("uiWidth", getWidth(), nullptr);
 }
 
+// Direct2D can leave the window blank on some Windows GPUs/drivers inside hosts,
+// so the editor always uses JUCE's software renderer.
+void K808Editor::useSoftwareRenderer()
+{
+   #if JUCE_WINDOWS
+    if (auto* peer = getPeer())
+        if (peer->getCurrentRenderingEngine() != 0 && peer->getAvailableRenderingEngines().size() > 1)
+            peer->setCurrentRenderingEngine (0);
+   #endif
+}
+
+void K808Editor::parentHierarchyChanged()
+{
+    AudioProcessorEditor::parentHierarchyChanged();
+    useSoftwareRenderer();
+}
+
+void K808Editor::visibilityChanged()
+{
+    AudioProcessorEditor::visibilityChanged();
+    useSoftwareRenderer();
+}
+
 void K808Editor::showPage (bool adv)
 {
     simple.setVisible (! adv);
@@ -509,6 +532,8 @@ void K808Editor::savePresetAs()
 
 void K808Editor::timerCallback()
 {
+    useSoftwareRenderer();
+
     auto& e = processor.engine;
     const float peaks[2] = { e.inPeak.exchange (0.0f), e.outPeak.exchange (0.0f) };
 

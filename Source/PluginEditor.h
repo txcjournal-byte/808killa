@@ -76,12 +76,15 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void parentHierarchyChanged() override;
+    void visibilityChanged() override;
 
     static constexpr int designWidth = 1536;
     static constexpr int designHeight = 1024;
 
 private:
     void timerCallback() override;
+    void useSoftwareRenderer();
     void showPage (bool advanced);
     void showPresetMenu();
     void savePresetAs();

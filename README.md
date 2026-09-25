@@ -15,13 +15,13 @@ GitHub ho sestaví sám po každém pushi:
    `C:\Program Files\Common Files\VST3`
 4. Ve FL Studiu: *Options → Manage plugins → Find more plugins* (rescan) a přidej **808 KILLA**.
 
-## Build na vlastním PC (Visual Studio 2022)
+## Build na vlastním PC (Visual Studio 2022 nebo novější)
 
-Potřebuješ Visual Studio 2022 s balíčkem **Desktop development with C++** (obsahuje i CMake).
+Potřebuješ Visual Studio 2022 nebo novější s balíčkem **Desktop development with C++** (obsahuje i CMake).
 Při prvním buildu se automaticky stáhne knihovna JUCE (je potřeba internet).
 
 **Varianta A – dvojklik:**
-Otevři *Developer Command Prompt for VS 2022*, přejdi do složky projektu a spusť `build.bat`.
+Otevři *Developer Command Prompt for VS*, přejdi do složky projektu a spusť `build.bat`.
 Po dokončení se otevře složka s `808 KILLA.vst3`.
 
 **Varianta B – ve Visual Studiu:**

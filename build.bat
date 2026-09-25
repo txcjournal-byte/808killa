@@ -1,9 +1,9 @@
 @echo off
-rem Sestavi 808 KILLA (VST3 + Standalone) pres Visual Studio 2022.
-rem Spoustej z "Developer Command Prompt for VS 2022" (nebo mej cmake v PATH).
+rem Sestavi 808 KILLA (VST3 + Standalone) pres Visual Studio (2022 nebo novejsi).
+rem Spoustej z "Developer Command Prompt for VS" (nebo mej cmake v PATH).
 cd /d "%~dp0"
 
-cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake -B build -A x64
 if errorlevel 1 goto error
 
 cmake --build build --config Release --parallel

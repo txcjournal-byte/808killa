@@ -129,6 +129,58 @@ int main()
             }
     }
 
+    // ---------------------------------------------------------------- pitch FX + wobble
+    std::cout << "[1b] pitch FX and wobble combinations" << std::endl;
+    {
+        K808Processor proc;
+        enableSidechain (proc, false);
+        for (int target = 0; target < 4; ++target)
+            for (int rate : { 0, 4, 8 })
+                for (int lfoShape = 0; lfoShape < 5; ++lfoShape)
+                {
+                    proc.presets.init();
+                    setParam (proc, ParamIDs::knock, 12.0f);
+                    setParam (proc, ParamIDs::dive, -24.0f);
+                    setParam (proc, ParamIDs::diveDelay, 50.0f);
+                    setParam (proc, ParamIDs::octDown, 1.0f);
+                    setParam (proc, ParamIDs::octUp, 1.0f);
+                    setParam (proc, ParamIDs::wobble, 1.0f);
+                    setParam (proc, ParamIDs::wobbleTarget, (float) target);
+                    setParam (proc, ParamIDs::wobbleRate, (float) rate);
+                    setParam (proc, ParamIDs::wobbleShape, (float) lfoShape);
+                    const auto out = run (proc, makeInput (48000.0, 1.5), 48000.0, 256);
+                    const auto peak = out.getMagnitude (0, out.getNumSamples());
+                    check (allFinite (out) && peak < 2.0f && peak > 0.01f,
+                           "pitch/wobble target " + String (target) + " rate " + String (rate) + " shape " + String (lfoShape) + " peak " + String (peak));
+                }
+    }
+
+    // ---------------------------------------------------------------- BEND really changes the pitch
+    std::cout << "[1c] BEND -12 st halves the frequency" << std::endl;
+    {
+        K808Processor proc;
+        enableSidechain (proc, false);
+        proc.presets.init();
+        setParam (proc, ParamIDs::dirtOn, 0.0f);
+        setParam (proc, ParamIDs::clipper, 0.0f);
+        setParam (proc, ParamIDs::shapeOn, 0.0f);
+        setParam (proc, ParamIDs::dive, -12.0f);
+        setParam (proc, ParamIDs::diveDelay, 0.0f);
+        setParam (proc, ParamIDs::diveTime, 50.0f);
+        AudioBuffer<float> in (2, 48000);
+        for (int i = 0; i < in.getNumSamples(); ++i)
+            for (int c = 0; c < 2; ++c)
+                in.setSample (c, i, 0.5f * (float) std::sin (2.0 * MathConstants<double>::pi * 110.0 * i / 48000.0));
+        const auto out = run (proc, in, 48000.0, 512);
+        int crossings = 0;
+        for (int i = 24000; i < 43200; ++i)
+            if (out.getSample (0, i - 1) < 0.0f && out.getSample (0, i) >= 0.0f)
+                ++crossings;
+        const auto freq = crossings / 0.4;
+        std::cout << "    measured " << freq << " Hz (expected ~55)" << std::endl;
+        check (freq > 45.0 && freq < 65.0, "bend did not drop the pitch an octave (" + String (freq) + " Hz)");
+    }
+
     // ---------------------------------------------------------------- offline == realtime
     std::cout << "[2] block size independence (offline render = realtime)" << std::endl;
     {

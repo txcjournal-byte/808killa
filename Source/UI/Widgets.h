@@ -79,7 +79,7 @@ namespace UI
         explicit FlatButton (const juce::String& buttonText) : Button (buttonText) {}
         void paintButton (juce::Graphics&, bool over, bool down) override;
         bool active = false;
-        float textHeight = 20.0f;
+        float textHeight = 24.0f;
 
     private:
         juce::SharedResourcePointer<Look::Fonts> fonts;

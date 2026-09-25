@@ -70,6 +70,27 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     b.db (ParamIDs::inGain, "Input", -24.0f, 24.0f, 0.0f);
     b.toggle (ParamIDs::bypass, "Bypass", false);
 
+    // ---- pitch
+    auto semis = [] (float v) { const auto r = std::round (v * 10.0f) / 10.0f; return (r > 0.04f ? "+" : "") + String (std::abs (r) < 0.05f ? 0.0f : r, 1) + " st"; };
+    auto ms = [] (float v) { return String (roundToInt (v)) + " ms"; };
+    b.toggle (ParamIDs::pitchOn, "Pitch On", true);
+    b.range (ParamIDs::knock, "Knock", NormalisableRange<float> (0.0f, 12.0f, 0.1f), 0.0f, semis);
+    b.range (ParamIDs::knockTime, "Knock Time", logRange (5.0f, 150.0f), 30.0f, ms);
+    b.range (ParamIDs::dive, "Bend", NormalisableRange<float> (-24.0f, 0.0f, 0.1f), 0.0f, semis);
+    b.range (ParamIDs::diveTime, "Bend Time", logRange (20.0f, 1500.0f), 250.0f, ms);
+    b.range (ParamIDs::diveDelay, "Bend Delay", NormalisableRange<float> (0.0f, 1000.0f, 1.0f), 150.0f, ms);
+    b.unit (ParamIDs::octDown, "Octave Down", 0.0f);
+    b.unit (ParamIDs::octUp, "Octave Up", 0.0f);
+
+    // ---- wobble
+    b.toggle (ParamIDs::wobbleOn, "Wobble On", true);
+    b.unit (ParamIDs::wobble, "Wobble", 0.0f);
+    b.choice (ParamIDs::wobbleTarget, "Wobble Target", Choices::wobbleTargets, 0);
+    b.choice (ParamIDs::wobbleRate, "Wobble Rate", Choices::wobbleRates, 6);
+    b.choice (ParamIDs::wobbleShape, "Wobble Shape", Choices::wobbleShapes, 0);
+    b.range (ParamIDs::wobbleFade, "Wobble Fade", NormalisableRange<float> (0.0f, 500.0f, 1.0f), 0.0f, ms);
+    b.toggle (ParamIDs::wobbleRetrig, "Wobble Retrigger", true);
+
     // ---- shape
     b.toggle (ParamIDs::shapeOn, "Shape On", true);
     b.unit (ParamIDs::punch, "Punch", 0.3f);
@@ -124,6 +145,8 @@ StringArray sectionParameters (const String& section)
 {
     using namespace ParamIDs;
 
+    if (section == "PITCH")  return { pitchOn, knock, knockTime, dive, diveTime, diveDelay, octDown, octUp };
+    if (section == "WOBBLE") return { wobbleOn, wobble, wobbleTarget, wobbleRate, wobbleShape, wobbleFade, wobbleRetrig };
     if (section == "SHAPE")  return { shapeOn, punch, punchClick, length };
     if (section == "TONE")   return { toneOn, sub, harmonics, filterOn, cutoff, resonance, slope, tilt };
     if (section == "DIRT")   return { dirtOn, dirtMode, dirt, dirtMix, autoGain, oversample, cleanLow, cleanFreq, crushBits, postFilter };

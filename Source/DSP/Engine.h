@@ -13,6 +13,19 @@ struct EngineParams
     float kill = 0.0f, inGainDb = 0.0f;
     bool bypass = false;
 
+    bool pitchOn = true;
+    float knock = 0.0f, knockTimeMs = 30.0f, dive = 0.0f, diveTimeMs = 250.0f, diveDelayMs = 150.0f;
+    float octDown = 0.0f, octUp = 0.0f;
+
+    bool wobbleOn = true;
+    float wobble = 0.0f, wobbleFadeMs = 0.0f;
+    int wobbleTarget = 0, wobbleRate = 6, wobbleShape = 0;
+    bool wobbleRetrig = true;
+
+    // host transport (tempo sync)
+    double bpm = 120.0, ppq = 0.0;
+    bool playing = false;
+
     bool shapeOn = true;
     float punch = 0.0f, click = 0.0f, length = 0.0f;
 
@@ -64,16 +77,25 @@ private:
     {
         Biquad hp20, sub, tiltLow, tiltHigh, filt1, filt2, harmBand, harmHigh, clickHigh, post, kw1, kw2;
         DelayLine lowDelay, dryDelay, padDelay;
+        std::vector<float> pitchBuf;
+        int pitchWrite = 0;
+        Biquad octLow, octSub, octUpHigh;
+        float octFlip = 1.0f;
+        bool octWasNegative = false;
         float dcX = 0.0f, dcY = 0.0f, hold = 0.0f;
         int holdCount = 0;
     };
 
     void updateFilters (const EngineParams& p, float subDb);
+    float readPitch (Channel&, float delay) const noexcept;
+    float lfoValue (int shape, float phase) const noexcept;
     float shape (int mode, float x) const noexcept;
 
     double fs = 44100.0;
     int maxBlock = 512;
-    int latency = 0;
+    int latency = 0;            // total reported latency = lookahead + oversampling
+    int osMaxLatency = 0;
+    int lookahead = 0;          // pitch FX lookahead (lets KNOCK read ahead of the note)
     std::array<int, 3> osLatency {};
     std::array<std::unique_ptr<juce::dsp::Oversampling<float>>, 3> oversamplers;
     std::array<Channel, 2> ch;
@@ -81,7 +103,18 @@ private:
     Biquad phoneHp1, phoneHp2, phonePeak, phoneLp;
 
     juce::AudioBuffer<float> dryBuf, lowBuf, preBuf;
-    std::vector<float> driveGain;
+    std::vector<float> driveGain, wobbleGain, wobbleCutoff;
+    juce::dsp::StateVariableTPTFilter<float> wobbleFilter;
+
+    // pitch FX state
+    float pitchDelay = 0.0f, vibrato = 0.0f, oldDelay = 0.0f;
+    int crossfade = 0, crossfadeLength = 1, onsetCountdown = -1, noteSamples = 1 << 30, preHold = 0;
+    float preFast = 0.0f, preSlow = 0.0f;
+
+    // wobble LFO state
+    double lfoPhase = 0.0;
+    float sampleHold = 0.0f;
+    juce::Random random { 808 };
 
     // detection
     float envFast = 0.0f, envSlow = 0.0f, envGate = 0.0f, notePeak = 0.0f, lengthGain = 1.0f;

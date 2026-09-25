@@ -6,10 +6,10 @@ using namespace Look;
 
 namespace
 {
-    // design-space layout (1536 x 1024, matches the artwork)
-    const Rectangle<int> topBarArea  { 452, 88, 1044, 72 };
-    const Rectangle<int> contentArea { 460, 172, 906, 816 };
-    const Rectangle<int> meterArea   { 1378, 172, 116, 816 };
+    // design-space layout (1536 x 1024, see tools/make_background_v3.py)
+    const Rectangle<int> topBarArea  { 362, 66, 1160, 70 };
+    const Rectangle<int> contentArea { 362, 144, 1160, 866 };
+    const Rectangle<int> meterArea   { 12, 678, 340, 332 };
 
     const char* describe (const String& preset)
     {
@@ -31,6 +31,13 @@ namespace
             { "Dirty Knock",       "Hard clipped knock with a clean sub underneath." },
             { "Lo-Fi Muffle",      "Muffled, crushed and dark." },
             { "Motor City Chop",   "Chopped short and clipped." },
+            { "Slime Bend",        "Hard clipped with a fast pitch drop at the end of every note." },
+            { "Dive Bomb",         "Every note dives two octaves down." },
+            { "Sub Octave",        "Adds a sub one octave below the 808." },
+            { "Octave Grit",       "Gritty upper octave layered on top." },
+            { "Wobble Wave",       "Pitch, volume and filter wobble in 1/16." },
+            { "Triplet Wub",       "Filter wub in 1/8 triplets." },
+            { "Tape Drop",         "Slow tape-stop style pitch drop." },
         };
         const auto it = text.find (preset);
         return it != text.end() ? it->second : "Your own preset.";
@@ -43,16 +50,21 @@ SimplePage::SimplePage (K808Processor& p)
       length (p.apvts, ParamIDs::length, "LENGTH", "Shorten (left) or stretch (right) the tail of every 808 note.", true),
       punch  (p.apvts, ParamIDs::punch,  "PUNCH",  "Boosts the start of every note so the 808 hits harder."),
       dirt   (p.apvts, ParamIDs::dirt,   "DIRT",   "Amount of distortion. The type of dirt is set by the style (ADVANCED > DIRT)."),
-      duck   (p.apvts, ParamIDs::duck,   "DUCK",   "Ducks the 808 under the kick. Needs the kick routed to the sidechain input.")
+      duck   (p.apvts, ParamIDs::duck,   "DUCK",   "Ducks the 808 under the kick. Needs the kick routed to the sidechain input."),
+      bend   (p.apvts, ParamIDs::dive,   "BEND",   "Pitch dive on every note (trap bend). Timing is in ADVANCED > PITCH.", false),
+      wobble (p.apvts, ParamIDs::wobble, "WOBBLE", "Tempo-synced wobble. Target, rate and shape are in ADVANCED > WOBBLE.")
 {
-    for (auto* k : { &kill, &length, &punch, &dirt, &duck })
+    for (auto* k : { &kill, &length, &punch, &dirt, &duck, &bend, &wobble })
         addAndMakeVisible (*k);
+    bend.getSlider().getProperties().set ("fromEnd", true);   // arc grows as the dive gets deeper
 
-    kill.setKnobArea ({ 283, 150, 340, 340 }, 48.0f);
-    length.setKnobArea ({ 55, 95, 160, 160 }, 32.0f);
-    punch.setKnobArea ({ 55, 430, 160, 160 }, 32.0f);
-    dirt.setKnobArea ({ 691, 95, 160, 160 }, 32.0f);
-    duck.setKnobArea ({ 691, 430, 160, 160 }, 32.0f);
+    kill.setKnobArea ({ 380, 96, 400, 400 }, 58.0f);
+    length.setKnobArea ({ 85, 60, 170, 170 }, 38.0f);
+    punch.setKnobArea ({ 85, 330, 170, 170 }, 38.0f);
+    duck.setKnobArea ({ 85, 600, 170, 170 }, 38.0f);
+    dirt.setKnobArea ({ 905, 60, 170, 170 }, 38.0f);
+    bend.setKnobArea ({ 905, 330, 170, 170 }, 38.0f);
+    wobble.setKnobArea ({ 905, 600, 170, 170 }, 38.0f);
 }
 
 void SimplePage::setStyleText (const String& title, const String& description)
@@ -70,14 +82,15 @@ void SimplePage::paint (Graphics& g)
     drawPanel (g, r);
 
     // style description under KILL
-    const Rectangle<float> info (150.0f, 660.0f, r.getWidth() - 300.0f, 110.0f);
+    const Rectangle<float> info (300.0f, 650.0f, r.getWidth() - 600.0f, 160.0f);
     drawPanel (g, info, true);
     g.setColour (Palette::redBright);
-    g.setFont (fonts->bold (34.0f));
-    g.drawText (styleTitle.toUpperCase(), info.withHeight (58.0f).translated (0.0f, 8.0f), Justification::centred, false);
+    g.setFont (fonts->bold (44.0f));
+    g.drawText (styleTitle.toUpperCase(), info.withHeight (72.0f).translated (0.0f, 12.0f), Justification::centred, false);
     g.setColour (Palette::text);
-    g.setFont (fonts->sans (21.0f));
-    g.drawText (styleDescription, info.withTrimmedTop (60.0f).withTrimmedBottom (14.0f), Justification::centred, false);
+    g.setFont (fonts->sans (27.0f));
+    g.drawFittedText (styleDescription, info.withTrimmedTop (80.0f).withTrimmedBottom (14.0f).reduced (16.0f, 0.0f).toNearestInt(),
+                      Justification::centred, 2);
 }
 
 //==============================================================================
@@ -97,7 +110,7 @@ UI::Knob& AdvancedPage::knob (int tab, int col, int row, const String& id, const
     auto* k = new UI::Knob (processor.apvts, id, label, tip, bipolar);
     owned.add (k);
     addChildComponent (*k);
-    k->setKnobArea ({ 70 + col * 160, 190 + row * 270, 120, 120 }, 26.0f);
+    k->setKnobArea ({ 90 + col * 210, 220 + row * 300, 140, 140 }, 32.0f);
     tabs[(size_t) tab].controls.push_back (k);
     return *k;
 }
@@ -108,9 +121,10 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     auto& s = p.apvts;
 
     tabs = {
-        { "PITCH",    {},       "Pitch FX (bend, slide, knock, octave jump, key lock) arrive in the next update.", {} },
+        { "PITCH",    pitchOn,  "KNOCK = pitch hit at the start of each note.  BEND = trap dive after BEND DELAY.  "
+                                "OCT DOWN / OCT UP = extra octave layers.", {} },
         { "SHAPE",    shapeOn,  {}, {} },
-        { "WOBBLE",   {},       "Wobble (pitch / volume / filter LFO) arrives in the next update.", {} },
+        { "WOBBLE",   wobbleOn, {}, {} },
         { "TONE",     toneOn,   {}, {} },
         { "DIRT",     dirtOn,   {}, {} },
         { "DUCK",     duckOn,   "Route your kick to the sidechain input of 808 KILLA (FL Studio: kick mixer track > "
@@ -123,26 +137,22 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     for (int i = 0; i < (int) tabs.size(); ++i)
     {
         auto* b = tabButtons.add (new UI::FlatButton (tabs[(size_t) i].name));
-        b->textHeight = 19.0f;
+        b->textHeight = 23.0f;
         b->onClick = [this, i] { showTab (i); };
-
-        // PITCH and WOBBLE stay hidden until their DSP exists
-        if (tabs[(size_t) i].name != "PITCH" && tabs[(size_t) i].name != "WOBBLE")
-        {
-            b->setBounds (12 + visibleTabs * 147, 14, 144, 46);
-            addAndMakeVisible (b);
-            ++visibleTabs;
-        }
+        b->setBounds (12 + visibleTabs * 142, 14, 139, 52);
+        addAndMakeVisible (b);
+        ++visibleTabs;
 
         if (tabs[(size_t) i].sectionParam.isNotEmpty())
         {
             sectionToggles[i] = std::make_unique<UI::LedToggle> (s, tabs[(size_t) i].sectionParam, "ON", "Switch this whole section on or off.");
-            sectionToggles[i]->setBounds (632, 82, 120, 44);
+            sectionToggles[i]->setBounds (850, 84, 140, 52);
             addChildComponent (*sectionToggles[i]);
         }
     }
 
-    resetButton.setBounds (764, 82, 120, 44);
+    resetButton.setBounds (1004, 84, 140, 52);
+    resetButton.textHeight = 23.0f;
     resetButton.setTooltip ("Reset every control on this tab to its default.");
     resetButton.onClick = [this]
     {
@@ -156,6 +166,29 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     };
     addChildComponent (resetButton);
 
+    // ---- PITCH
+    knob (0, 0, 0, knock, "KNOCK", "Pitch hit at the start of every note (semitones above the note).");
+    knob (0, 1, 0, knockTime, "KNOCK TIME", "How fast the knock falls back to the note.");
+    knob (0, 2, 0, dive, "BEND", "Trap dive: how far each note drops (semitones).").getSlider().getProperties().set ("fromEnd", true);
+    knob (0, 3, 0, diveTime, "BEND TIME", "How long the dive takes.");
+    knob (0, 4, 0, diveDelay, "BEND DELAY", "How long after the note starts the dive begins.");
+    knob (0, 0, 1, octDown, "OCT DOWN", "Adds a sub one octave below the 808.");
+    knob (0, 1, 1, octUp, "OCT UP", "Adds a gritty octave above the 808.");
+    for (auto* c : tabs[0].controls)
+        if (auto* k = dynamic_cast<UI::Knob*> (c); k != nullptr && k->getY() > 400)
+            k->setTopLeftPosition (k->getX(), k->getY() - 20);
+
+    // ---- WOBBLE
+    add<UI::ChoiceSelector> (2, { 220, 150, 900, 58 }, s, wobbleTarget, "What the wobble moves: pitch, volume, filter or all of them.");
+    add<UI::ChoiceSelector> (2, { 220, 222, 900, 58 }, s, wobbleRate, "Wobble speed, synced to the DAW tempo (T = triplet, D = dotted).");
+    add<UI::ChoiceSelector> (2, { 220, 294, 900, 58 }, s, wobbleShape, "Wobble waveform.");
+    knob (2, 0, 1, wobble, "DEPTH", "How strong the wobble is.");
+    knob (2, 1, 1, wobbleFade, "FADE IN", "The wobble fades in after each note starts.");
+    for (auto* c : tabs[2].controls)
+        if (auto* k = dynamic_cast<UI::Knob*> (c))
+            k->setTopLeftPosition (k->getX(), k->getY() - 60);
+    add<UI::LedToggle> (2, { 560, 520, 300, 60 }, s, wobbleRetrig, "RETRIGGER", "Restart the wobble on every new note (off = locked to the DAW grid).");
+
     // ---- SHAPE
     knob (1, 0, 0, punch, "PUNCH", "Boosts the attack of every note.");
     knob (1, 1, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
@@ -165,13 +198,13 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     knob (3, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
     knob (3, 1, 0, harmonics, "HARMONICS", "Adds upper harmonics so the 808 is heard on small speakers.");
     knob (3, 2, 0, tilt, "TILT", "Tilts the tone darker (left) or brighter (right).", true);
-    add<UI::LedToggle> (3, { 40, 470, 220, 54 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
+    add<UI::LedToggle> (3, { 40, 540, 280, 60 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
     knob (3, 2, 1, cutoff, "CUTOFF", "Low-pass cutoff frequency.");
     knob (3, 3, 1, resonance, "RESO", "Resonance at the cutoff.");
-    add<UI::ChoiceSelector> (3, { 40, 550, 220, 54 }, s, slope, "Filter steepness.");
+    add<UI::ChoiceSelector> (3, { 40, 620, 280, 60 }, s, slope, "Filter steepness.");
 
     // ---- DIRT
-    add<UI::ChoiceSelector> (4, { 40, 150, 826, 56 }, s, dirtMode, "Type of distortion.");
+    add<UI::ChoiceSelector> (4, { 40, 150, 1080, 62 }, s, dirtMode, "Type of distortion.");
     knob (4, 0, 1, dirt, "DRIVE", "How hard the 808 is pushed into the distortion.");
     knob (4, 1, 1, dirtMix, "DIRT MIX", "Blend between clean and distorted 808.");
     knob (4, 2, 1, crushBits, "CRUSH", "Bit reduction for lo-fi grit (24 = off).");
@@ -180,9 +213,9 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     for (auto* c : tabs[4].controls)
         if (auto* k = dynamic_cast<UI::Knob*> (c))
             k->setTopLeftPosition (k->getX(), k->getY() - 150);
-    add<UI::LedToggle> (4, { 40, 610, 200, 54 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
-    add<UI::LedToggle> (4, { 260, 610, 200, 54 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
-    add<UI::ChoiceSelector> (4, { 560, 610, 306, 54 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
+    add<UI::LedToggle> (4, { 40, 660, 280, 62 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
+    add<UI::LedToggle> (4, { 340, 660, 280, 62 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
+    add<UI::ChoiceSelector> (4, { 700, 660, 420, 62 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
 
     // ---- DUCK
     knob (5, 0, 0, duck, "DUCK", "How much the 808 ducks under the kick.");
@@ -198,12 +231,13 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     knob (6, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
 
     // ---- SETTINGS
-    openFolderButton.setBounds (40, 330, 360, 54);
+    openFolderButton.setBounds (40, 360, 420, 62);
+    openFolderButton.textHeight = 23.0f;
     openFolderButton.onClick = [] { PresetManager::userFolder().createDirectory(); PresetManager::userFolder().startAsProcess(); };
     addChildComponent (openFolderButton);
     tabs[7].controls.push_back (&openFolderButton);
 
-    showTab (4);
+    showTab (0);
 }
 
 void AdvancedPage::showTab (int index)
@@ -230,23 +264,30 @@ void AdvancedPage::paint (Graphics& g)
     drawPanel (g, r);
 
     const auto& tab = tabs[(size_t) current];
-    drawLabel (g, tab.name, { 40.0f, 80.0f, 400.0f, 48.0f }, 44.0f, Palette::ink, Justification::centredLeft);
+    drawLabel (g, tab.name, { 40.0f, 82.0f, 400.0f, 56.0f }, 52.0f, Palette::ink, Justification::centredLeft);
+
+    if (tab.name == "WOBBLE")
+    {
+        drawLabel (g, "TARGET", { 40.0f, 150.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
+        drawLabel (g, "RATE",   { 40.0f, 222.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
+        drawLabel (g, "SHAPE",  { 40.0f, 294.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
+    }
 
     if (tab.note.isNotEmpty())
     {
-        const Rectangle<float> box (40.0f, tab.controls.empty() ? 160.0f : 640.0f, r.getWidth() - 80.0f, 110.0f);
+        const Rectangle<float> box (40.0f, tab.controls.empty() ? 160.0f : 700.0f, r.getWidth() - 80.0f, 130.0f);
         drawPanel (g, box, true);
         g.setColour (Palette::text);
-        g.setFont (fonts->sans (21.0f));
+        g.setFont (fonts->sans (25.0f));
         g.drawFittedText (tab.note, box.reduced (20.0f, 10.0f).toNearestInt(), Justification::centredLeft, 4);
     }
 
     if (tab.name == "SETTINGS")
     {
-        const Rectangle<float> box (40.0f, 150.0f, r.getWidth() - 80.0f, 160.0f);
+        const Rectangle<float> box (40.0f, 160.0f, r.getWidth() - 80.0f, 170.0f);
         drawPanel (g, box, true);
         g.setColour (Palette::text);
-        g.setFont (fonts->sans (21.0f));
+        g.setFont (fonts->sans (26.0f));
         const auto text = String (JucePlugin_Name) + "  v" + JucePlugin_VersionString + "\n"
                           + "by " + JucePlugin_Manufacturer + "\n"
                           + "Double-click a knob = default value.  Ctrl / Cmd + drag = fine adjustment.";
@@ -269,16 +310,15 @@ void Canvas::paint (Graphics& g)
     drawPanel (g, meterArea.toFloat(), true);
 
     g.setColour (Palette::text);
-    g.setFont (fonts->bold (26.0f));
-    g.drawText ("MASTER", meterArea.toFloat().withHeight (46.0f).translated (0.0f, 6.0f), Justification::centred, false);
+    g.setFont (fonts->bold (32.0f));
+    g.drawText ("MASTER", meterArea.toFloat().withHeight (46.0f).translated (18.0f, 8.0f), Justification::centredLeft, false);
 
-
-    // version in the title bar (covers the artwork's static text)
-    const Rectangle<float> title (1060.0f, 32.0f, 290.0f, 30.0f);
-    g.setColour (Colour (0xff0c0c0b));
+    // version in the title bar
+    const Rectangle<float> title (1000.0f, 14.0f, 396.0f, 32.0f);
+    g.setColour (Colour (0xff0d0c0b));
     g.fillRect (title);
     g.setColour (Colour (0xffd9d4ca));
-    g.setFont (fonts->mono (19.0f));
+    g.setFont (fonts->mono (21.0f));
     g.drawText ("LOW END DAMAGE UNIT / REV " + String (JucePlugin_VersionString).upToLastOccurrenceOf (".", false, false),
                 title, Justification::centredRight, false);
 }
@@ -287,11 +327,11 @@ void Canvas::paintOverChildren (Graphics& g)
 {
     if (phoneOn)
     {
-        const Rectangle<float> banner ((float) contentArea.getX() + 190.0f, (float) contentArea.getY() + 12.0f, 526.0f, 34.0f);
+        const Rectangle<float> banner ((float) contentArea.getX() + 280.0f, (float) contentArea.getY() + 10.0f, 600.0f, 40.0f);
         g.setColour (Palette::red);
         g.fillRect (banner);
         g.setColour (Colours::white);
-        g.setFont (fonts->bold (24.0f));
+        g.setFont (fonts->bold (28.0f));
         g.drawText ("PHONE CHECK ON  -  TURN OFF BEFORE EXPORT", banner, Justification::centred, false);
     }
 }
@@ -310,14 +350,16 @@ K808Editor::K808Editor (K808Processor& p)
 
     // ---- top bar
     const auto bar = topBarArea.reduced (10, 10);
-    simpleTab.setBounds (bar.getX(), bar.getY(), 130, bar.getHeight());
-    advancedTab.setBounds (bar.getX() + 134, bar.getY(), 150, bar.getHeight());
-    prevButton.setBounds (bar.getX() + 310, bar.getY(), 52, bar.getHeight());
-    presetButton.setBounds (bar.getX() + 366, bar.getY(), 440, bar.getHeight());
-    nextButton.setBounds (bar.getX() + 810, bar.getY(), 52, bar.getHeight());
-    saveButton.setBounds (bar.getRight() - 150, bar.getY(), 150, bar.getHeight());
+    simpleTab.setBounds (bar.getX(), bar.getY(), 150, bar.getHeight());
+    advancedTab.setBounds (bar.getX() + 154, bar.getY(), 180, bar.getHeight());
+    prevButton.setBounds (bar.getX() + 350, bar.getY(), 60, bar.getHeight());
+    presetButton.setBounds (bar.getX() + 414, bar.getY(), 480, bar.getHeight());
+    nextButton.setBounds (bar.getX() + 898, bar.getY(), 60, bar.getHeight());
+    saveButton.setBounds (bar.getRight() - 170, bar.getY(), 170, bar.getHeight());
 
-    presetButton.textHeight = 26.0f;
+    presetButton.textHeight = 31.0f;
+    for (auto* b : { &simpleTab, &advancedTab, &prevButton, &nextButton, &saveButton })
+        b->textHeight = 25.0f;
     prevButton.setTooltip ("Previous preset");
     nextButton.setTooltip ("Next preset");
     presetButton.setTooltip ("Pick a style or preset");
@@ -342,9 +384,9 @@ K808Editor::K808Editor (K808Processor& p)
     canvas.addChildComponent (advanced);
 
     // ---- master column
-    const auto m = meterArea.reduced (10, 0);
-    meter.setBounds (m.getX(), meterArea.getY() + 56, m.getWidth(), 520);
+    meter.setBounds (meterArea.getX() + 12, meterArea.getY() + 56, 160, meterArea.getHeight() - 68);
     canvas.addAndMakeVisible (meter);
+    const Rectangle<int> m (meterArea.getX() + 182, meterArea.getY() + 12, meterArea.getWidth() - 194, meterArea.getHeight() - 24);
 
     for (auto* l : { &lufsLabel, &peakLabel })
     {
@@ -352,16 +394,16 @@ K808Editor::K808Editor (K808Processor& p)
         l->setColour (Label::textColourId, Palette::text);
         l->setColour (Label::backgroundColourId, Palette::boxFill);
         l->setColour (Label::outlineColourId, Palette::boxEdge);
-        l->setFont (lnf.fonts->mono (20.0f));
+        l->setFont (lnf.fonts->mono (26.0f));
         canvas.addAndMakeVisible (*l);
     }
-    peakLabel.setBounds (m.getX(), meterArea.getY() + 590, m.getWidth(), 36);
-    lufsLabel.setBounds (m.getX(), meterArea.getY() + 632, m.getWidth(), 36);
+    peakLabel.setBounds (m.getX(), m.getY(), m.getWidth(), 46);
+    lufsLabel.setBounds (m.getX(), m.getY() + 54, m.getWidth(), 46);
     peakLabel.setTooltip ("Output peak (dBFS)");
     lufsLabel.setTooltip ("Output loudness, short-term (LUFS)");
 
     phoneButton.big = true;
-    phoneButton.setBounds (m.getX(), meterArea.getBottom() - 130, m.getWidth(), 118);
+    phoneButton.setBounds (m.getX(), m.getY() + 112, m.getWidth(), m.getHeight() - 112);
     canvas.addAndMakeVisible (phoneButton);
 
     showPage (false);

@@ -16,15 +16,17 @@ GitHub ho sestaví sám po každé změně:
    - **808-KILLA-Installer-macOS** – instalátor (.pkg) pro Mac (VST3 + AU)
 3. Ve FL Studiu: *Options → Manage plugins → Find more plugins*.
 
-## Co umí (verze 0.2)
+## Co umí (verze 0.3)
 
-**SIMPLE stránka:** výběr stylu/presetu (◀ ▶), velký **KILL** a makra **LENGTH, PUNCH, DIRT, DUCK**,
+**SIMPLE stránka:** výběr stylu/presetu (◀ ▶), velký **KILL** a makra **LENGTH, PUNCH, DIRT, DUCK, BEND, WOBBLE**,
 MASTER metr (peak + LUFS short-term) a **PHONE CHECK**.
 
 **ADVANCED stránka (záložky):**
 
 | Záložka | Parametry |
 |---|---|
+| PITCH | Knock (pitch úder), Bend (trap dive) + čas a zpoždění, Octave Down, Octave Up |
+| WOBBLE | LFO na pitch / hlasitost / filtr, sync s tempem (1/2 až 1/32, T, D), 5 tvarů, fade-in, retrigger |
 | SHAPE | Punch, Click, Length (zkrácení i prodloužení dozvuku) |
 | TONE | Sub, Harmonics, Tilt, Filter (LP 12/24 dB, cutoff, resonance) |
 | DIRT | Soft / Hard Clip / Tape / Tube / Foldback / Bitcrush, Drive, Mix, Crush, Post filter, Clean Low, Auto gain, Oversampling 2×/4×/8× |

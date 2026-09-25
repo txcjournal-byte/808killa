@@ -27,13 +27,13 @@ namespace
         static const std::vector<Factory> list = {
             // ---------------- STYLES
             { "Atlanta Clean", "Styles", 0, { { length, 0.2f }, { punch, 0.75f }, { punchClick, 0.2f }, { dirtMode, 0 }, { dirt, 0.15f },
-                                               { cleanLow, 1 }, { clipper, 0.25f }, { sub, 2.0f } } },
+                                               { cleanLow, 1 }, { clipper, 0.25f }, { sub, 2.0f }, { knock, 5.0f }, { knockTime, 25.0f } } },
             { "Memphis Phonk", "Styles", 1, { { length, -0.2f }, { punch, 0.45f }, { dirtMode, 2 }, { dirt, 0.75f }, { crushBits, 12 },
-                                               { filterOn, 1 }, { cutoff, 4000.0f }, { clipper, 0.5f }, { sub, 0.0f } } },
+                                               { filterOn, 1 }, { cutoff, 4000.0f }, { clipper, 0.5f }, { sub, 0.0f }, { wobble, 0.15f }, { wobbleTarget, 0 }, { wobbleRate, 1 } } },
             { "Rage Underground", "Styles", 2, { { punch, 0.45f }, { dirtMode, 4 }, { dirt, 1.0f }, { clipper, 0.8f }, { sub, 3.0f } } },
             { "Detroit Clip", "Styles", 3, { { length, -0.3f }, { punch, 0.75f }, { dirtMode, 1 }, { dirt, 0.85f }, { clipper, 0.95f }, { sub, 1.0f } } },
             { "Drill Chicago", "Styles", 4, { { length, -0.4f }, { punch, 0.75f }, { punchClick, 0.3f }, { dirtMode, 0 }, { dirt, 0.5f },
-                                               { filterOn, 1 }, { cutoff, 8000.0f }, { clipper, 0.5f }, { sub, 2.0f } } },
+                                               { filterOn, 1 }, { cutoff, 8000.0f }, { clipper, 0.5f }, { sub, 2.0f }, { knock, 6.0f }, { knockTime, 30.0f } } },
             { "Drill NY", "Styles", 5, { { length, -0.25f }, { punch, 0.75f }, { dirtMode, 1 }, { dirt, 0.6f }, { clipper, 0.75f }, { sub, 2.0f } } },
             { "Drill UK", "Styles", 6, { { punch, 0.45f }, { dirtMode, 2 }, { dirt, 0.4f }, { clipper, 0.5f }, { sub, 2.0f } } },
             { "Plugg Soft", "Styles", 7, { { punch, 0.15f }, { dirtMode, 0 }, { dirt, 0.05f }, { filterOn, 1 }, { cutoff, 3000.0f },
@@ -45,11 +45,19 @@ namespace
 
             // ---------------- TECHNICAL
             { "Clean Sub", "Clean", 0, { { dirtOn, 0 }, { sub, 6.0f }, { harmonics, 0.4f }, { punch, 0.2f }, { clipper, 0.1f } } },
-            { "Knock Punch", "Clean", 0, { { punch, 0.9f }, { punchClick, 0.6f }, { dirtMode, 0 }, { dirt, 0.15f }, { clipper, 0.3f } } },
-            { "Plugg Bounce", "Clean", 7, { { length, -0.3f }, { punch, 0.3f }, { dirtMode, 3 }, { dirt, 0.15f }, { clipper, 0.1f } } },
+            { "Knock Punch", "Clean", 0, { { punch, 0.9f }, { punchClick, 0.6f }, { dirtMode, 0 }, { dirt, 0.15f }, { clipper, 0.3f }, { knock, 7.0f }, { knockTime, 35.0f } } },
+            { "Plugg Bounce", "Clean", 7, { { length, -0.3f }, { punch, 0.3f }, { dirtMode, 3 }, { dirt, 0.15f }, { clipper, 0.1f }, { knock, 12.0f }, { knockTime, 25.0f } } },
             { "Phone Punch", "Clean", 9, { { harmonics, 0.85f }, { dirtMode, 0 }, { dirt, 0.3f }, { sub, 1.0f }, { clipper, 0.3f } } },
             { "Dirty Knock", "Dirty", 3, { { dirtMode, 1 }, { dirt, 0.7f }, { cleanLow, 1 }, { punch, 0.75f }, { punchClick, 0.3f }, { clipper, 0.6f } } },
-            { "Lo-Fi Muffle", "Dirty", 1, { { filterOn, 1 }, { cutoff, 1500.0f }, { dirtMode, 2 }, { dirt, 0.5f }, { crushBits, 10 }, { clipper, 0.3f } } },
+            { "Lo-Fi Muffle", "Dirty", 1, { { filterOn, 1 }, { cutoff, 1500.0f }, { dirtMode, 2 }, { dirt, 0.5f }, { crushBits, 10 }, { clipper, 0.3f }, { wobble, 0.1f }, { wobbleTarget, 0 }, { wobbleRate, 1 } } },
+            { "Slime Bend", "Pitch", 2, { { dive, -12.0f }, { diveDelay, 220.0f }, { diveTime, 90.0f }, { dirtMode, 1 }, { dirt, 0.8f },
+                                           { octDown, 0.25f }, { clipper, 0.7f } } },
+            { "Dive Bomb", "Pitch", 9, { { dive, -24.0f }, { diveDelay, 80.0f }, { diveTime, 700.0f }, { dirtMode, 0 }, { dirt, 0.45f }, { clipper, 0.4f } } },
+            { "Sub Octave", "Pitch", 0, { { octDown, 0.6f }, { dirtMode, 0 }, { dirt, 0.25f }, { clipper, 0.3f } } },
+            { "Octave Grit", "Pitch", 2, { { octUp, 0.5f }, { dirtMode, 2 }, { dirt, 0.6f }, { clipper, 0.6f } } },
+            { "Wobble Wave", "FX", 9, { { wobble, 0.6f }, { wobbleTarget, 3 }, { wobbleRate, 6 }, { wobbleFade, 100.0f }, { dirtMode, 0 }, { dirt, 0.4f } } },
+            { "Triplet Wub", "FX", 1, { { wobble, 0.8f }, { wobbleTarget, 2 }, { wobbleRate, 4 }, { wobbleShape, 1 }, { dirtMode, 2 }, { dirt, 0.6f } } },
+            { "Tape Drop", "FX", 8, { { dive, -24.0f }, { diveDelay, 0.0f }, { diveTime, 1200.0f }, { dirtMode, 2 }, { dirt, 0.35f } } },
             { "Motor City Chop", "FX", 3, { { length, -0.5f }, { dirtMode, 1 }, { dirt, 0.5f }, { punch, 0.6f }, { clipper, 0.6f } } },
         };
         return list;

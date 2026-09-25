@@ -12,6 +12,25 @@ namespace ParamIDs
     inline constexpr auto inGain     = "in_gain";
     inline constexpr auto bypass     = "bypass";
 
+    // pitch
+    inline constexpr auto pitchOn    = "pitch_on";
+    inline constexpr auto knock      = "knock";
+    inline constexpr auto knockTime  = "knock_time";
+    inline constexpr auto dive       = "dive";
+    inline constexpr auto diveTime   = "dive_time";
+    inline constexpr auto diveDelay  = "dive_delay";
+    inline constexpr auto octDown    = "oct_down";
+    inline constexpr auto octUp      = "oct_up";
+
+    // wobble
+    inline constexpr auto wobbleOn     = "wobble_on";
+    inline constexpr auto wobble       = "wobble";
+    inline constexpr auto wobbleTarget = "wobble_target";
+    inline constexpr auto wobbleRate   = "wobble_rate";
+    inline constexpr auto wobbleShape  = "wobble_shape";
+    inline constexpr auto wobbleFade   = "wobble_fade";
+    inline constexpr auto wobbleRetrig = "wobble_retrig";
+
     // shape
     inline constexpr auto shapeOn    = "shape_on";
     inline constexpr auto punch      = "punch";
@@ -63,6 +82,9 @@ namespace Choices
     const juce::StringArray dirtModes { "Soft", "Hard Clip", "Tape", "Tube", "Foldback", "Bitcrush" };
     const juce::StringArray oversampling { "2x", "4x", "8x" };
     const juce::StringArray slopes { "12 dB", "24 dB" };
+    const juce::StringArray wobbleTargets { "Pitch", "Volume", "Filter", "All" };
+    const juce::StringArray wobbleRates { "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/8D", "1/16", "1/16T", "1/32" };
+    const juce::StringArray wobbleShapes { "Sine", "Triangle", "Saw", "Square", "S&H" };
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

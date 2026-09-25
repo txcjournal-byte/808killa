@@ -27,7 +27,7 @@ KillMapping killMappingFor (int style) noexcept
 
 double Engine::tailSeconds (const EngineParams& p) noexcept
 {
-    return 0.25 + (p.length > 0.0f ? 1.0 : 0.0);
+    return 0.25 + (p.length > 0.0f ? 1.0 : 0.0) + (p.pitchOn && p.dive < 0.0f ? 1.0 : 0.0);
 }
 
 //==============================================================================
@@ -44,25 +44,37 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
         osLatency[i] = (int) oversamplers[i]->getLatencyInSamples();
     }
 
-    latency = *std::max_element (osLatency.begin(), osLatency.end());
+    osMaxLatency = *std::max_element (osLatency.begin(), osLatency.end());
+    lookahead = roundToInt (fs * 0.03);
+    latency = lookahead + osMaxLatency;
+    crossfadeLength = jmax (1, roundToInt (fs * 0.005));
 
     for (auto& c : ch)
     {
-        c.lowDelay.prepare (latency);
+        c.lowDelay.prepare (osMaxLatency);
         c.dryDelay.prepare (latency);
-        c.padDelay.prepare (latency);
+        c.padDelay.prepare (osMaxLatency);
+        c.pitchBuf.assign ((size_t) (fs * 4.0) + (size_t) lookahead + 8, 0.0f);
+        c.octLow.setLowPass (fs, 250.0, 0.707);
+        c.octSub.setLowPass (fs, 160.0, 0.707);
+        c.octUpHigh.setHighPass (fs, 35.0, 0.707);
     }
 
     dryBuf.setSize (2, maxBlock);
     lowBuf.setSize (2, maxBlock);
     preBuf.setSize (2, maxBlock);
     driveGain.assign ((size_t) maxBlock, 1.0f);
+    wobbleGain.assign ((size_t) maxBlock, 1.0f);
+    wobbleCutoff.assign ((size_t) maxBlock, 20000.0f);
 
     const dsp::ProcessSpec spec { fs, (uint32) maxBlock, 2 };
     cleanSplit.prepare (spec);
     cleanSplit.setType (dsp::LinkwitzRileyFilterType::lowpass);
     monoSplit.prepare (spec);
     monoSplit.setType (dsp::LinkwitzRileyFilterType::lowpass);
+    wobbleFilter.prepare (spec);
+    wobbleFilter.setType (dsp::StateVariableTPTFilterType::lowpass);
+    wobbleFilter.setResonance (0.9f);
 
     for (auto* s : { &inGain, &outGain, &mixAmt, &bypassAmt, &drive })
         s->reset (fs, 0.03);
@@ -98,7 +110,24 @@ void Engine::reset()
         c.padDelay.reset();
         c.dcX = c.dcY = c.hold = 0.0f;
         c.holdCount = 0;
+        std::fill (c.pitchBuf.begin(), c.pitchBuf.end(), 0.0f);
+        c.pitchWrite = 0;
+        for (auto* b : { &c.octLow, &c.octSub, &c.octUpHigh })
+            b->reset();
+        c.octFlip = 1.0f;
+        c.octWasNegative = false;
     }
+
+    pitchDelay = oldDelay = (float) lookahead;
+    vibrato = 0.0f;
+    crossfade = 0;
+    onsetCountdown = -1;
+    noteSamples = 1 << 30;
+    preFast = preSlow = 0.0f;
+    preHold = 0;
+    lfoPhase = 0.0;
+    sampleHold = 0.0f;
+    wobbleFilter.reset();
 
     for (auto& os : oversamplers)
         if (os != nullptr)
@@ -167,6 +196,34 @@ void Engine::updateFilters (const EngineParams& p, float subDb)
         monoSplit.setCutoffFrequency (jmax (20.0f, p.monoBelow));
 }
 
+float Engine::readPitch (Channel& c, float delay) const noexcept
+{
+    // cubic (Hermite) interpolated read, `delay` samples behind the last written sample
+    const auto size = (int) c.pitchBuf.size();
+    auto pos = (float) c.pitchWrite - 1.0f - delay;
+    while (pos < 0.0f) pos += (float) size;
+    const auto i1 = (int) pos;
+    const auto t = pos - (float) i1;
+    auto at = [&] (int i) { i %= size; if (i < 0) i += size; return c.pitchBuf[(size_t) i]; };
+    const auto y0 = at (i1 - 1), y1 = at (i1), y2 = at (i1 + 1), y3 = at (i1 + 2);
+    const auto c1 = 0.5f * (y2 - y0);
+    const auto c2 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+    const auto c3 = 0.5f * (y3 - y0) + 1.5f * (y1 - y2);
+    return ((c3 * t + c2) * t + c1) * t + y1;
+}
+
+float Engine::lfoValue (int lfoShape, float phase) const noexcept
+{
+    switch (lfoShape)
+    {
+        case 1:  return 1.0f - 4.0f * std::abs (phase - 0.5f);           // triangle
+        case 2:  return 1.0f - 2.0f * phase;                              // saw (down)
+        case 3:  return phase < 0.5f ? 1.0f : -1.0f;                      // square
+        case 4:  return sampleHold;                                       // sample & hold
+        default: return std::sin (MathConstants<float>::twoPi * phase);   // sine
+    }
+}
+
 float Engine::shape (int mode, float x) const noexcept
 {
     switch (mode)
@@ -203,7 +260,28 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     drive.setTargetValue (effDrive);
 
     const auto osIndex = jlimit (0, 2, p.oversampling);
-    const auto padDelay = latency - osLatency[(size_t) osIndex];
+    const auto padDelay = osMaxLatency - osLatency[(size_t) osIndex];
+
+    // ---- pitch FX + wobble setup
+    const auto pitchActive = p.pitchOn;
+    const auto knockTau = jmax (0.001f, p.knockTimeMs * 0.001f / 3.0f);
+    const auto diveDelayS = p.diveDelayMs * 0.001f;
+    const auto diveTimeS = jmax (0.01f, p.diveTimeMs * 0.001f);
+    const auto octActive = pitchActive && (p.octDown > 0.001f || p.octUp > 0.001f);
+    const auto wobbleActive = p.wobbleOn && p.wobble > 0.001f;
+    const auto wobblePitch = wobbleActive && (p.wobbleTarget == 0 || p.wobbleTarget == 3);
+    const auto wobbleVolume = wobbleActive && (p.wobbleTarget == 1 || p.wobbleTarget == 3);
+    const auto wobbleFilterOn = wobbleActive && (p.wobbleTarget == 2 || p.wobbleTarget == 3);
+    static constexpr double cyclesPerBeat[] = { 0.5, 1.0, 1.5, 2.0, 3.0, 4.0 / 3.0, 4.0, 6.0, 8.0 };
+    const auto cpb = cyclesPerBeat[jlimit (0, 8, p.wobbleRate)];
+    const auto bpm = p.bpm > 20.0 ? p.bpm : 120.0;
+    const auto lfoInc = bpm / 60.0 * cpb / fs;
+    if (! p.wobbleRetrig && p.playing)
+        lfoPhase = p.ppq * cpb - std::floor (p.ppq * cpb);   // lock to the DAW grid
+    const auto fadeSamples = p.wobbleFadeMs * 0.001f * (float) fs;
+    const auto vibratoLeak = 1.0f / (float) (0.3 * fs);
+    const auto maxDelay = (float) (ch[0].pitchBuf.size() - 4);
+    const auto semitoneToRate = std::log (2.0f) / 12.0f;
 
     const auto fastA = onePole (0.0005, fs), fastR = onePole (0.030, fs);
     const auto slowA = onePole (0.020, fs),  slowR = onePole (0.150, fs);
@@ -243,14 +321,109 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
         {
             const auto g = inGain.getNextValue();
             float x[2] = { 0.0f, 0.0f };
-            float detect = 0.0f;
+            float detectIn = 0.0f;
 
             for (int c = 0; c < numCh; ++c)
             {
                 dryBuf.setSample (c, i, data[c][i]);
                 x[c] = ch[(size_t) c].hp20.process (data[c][i] * g);
-                detect = jmax (detect, std::abs (x[c]));
+                detectIn = jmax (detectIn, std::abs (x[c]));
             }
+
+            // ---- note onsets on the incoming signal; they reach the read head `lookahead` samples later
+            preFast = follow (preFast, detectIn, fastA, fastR);
+            preSlow = follow (preSlow, detectIn, slowA, slowR);
+            if (preHold > 0) --preHold;
+            if (preFast > 0.003f && preFast > preSlow * 1.6f && preHold == 0)
+            {
+                onsetCountdown = lookahead;
+                preHold = (int) (fs * 0.06);
+            }
+
+            if (onsetCountdown >= 0 && --onsetCountdown < 0)
+            {
+                // new note reaches the read head: restart the pitch envelope, crossfade from the old position
+                oldDelay = pitchDelay + vibrato;
+                crossfade = crossfadeLength;
+                pitchDelay = (float) lookahead;
+                vibrato = 0.0f;
+                noteSamples = 0;
+                if (p.wobbleRetrig)
+                    lfoPhase = 0.0;
+            }
+            else if (noteSamples < (1 << 30))
+            {
+                ++noteSamples;
+            }
+
+            // ---- wobble LFO
+            lfoPhase += lfoInc;
+            if (lfoPhase >= 1.0)
+            {
+                lfoPhase -= std::floor (lfoPhase);
+                sampleHold = random.nextFloat() * 2.0f - 1.0f;
+            }
+            const auto fade = fadeSamples > 1.0f ? jmin (1.0f, (float) noteSamples / fadeSamples) : 1.0f;
+            const auto wobbleDepth = wobbleActive ? p.wobble * fade : 0.0f;
+            const auto lfo = lfoValue (p.wobbleShape, (float) lfoPhase);
+            wobbleGain[(size_t) i] = wobbleVolume ? 1.0f - wobbleDepth * (0.5f - 0.5f * lfo) : 1.0f;
+            wobbleCutoff[(size_t) i] = wobbleFilterOn ? 14000.0f * std::exp2 (-wobbleDepth * 6.0f * (0.5f - 0.5f * lfo)) : 20000.0f;
+
+            // ---- pitch envelope -> vari-speed read position
+            float semis = 0.0f;
+            if (pitchActive)
+            {
+                const auto t = (float) noteSamples / (float) fs;
+                if (p.knock > 0.0f)
+                    semis += p.knock * std::exp (-t / knockTau);
+                if (p.dive < 0.0f && t > diveDelayS)
+                {
+                    const auto k = jmin (1.0f, (t - diveDelayS) / diveTimeS);
+                    semis += p.dive * k * k * (3.0f - 2.0f * k);
+                }
+            }
+            pitchDelay = jlimit (2.0f, maxDelay, pitchDelay + 1.0f - std::exp2 (semis / 12.0f));
+            if (! pitchActive && crossfade == 0)
+                pitchDelay = (float) lookahead;
+
+            if (wobblePitch)
+                vibrato -= wobbleDepth * 2.0f * lfo * semitoneToRate;     // integrate the pitch deviation
+            vibrato -= vibrato * vibratoLeak;
+            const auto readDelay = jlimit (2.0f, maxDelay, pitchDelay + jlimit (-(float) lookahead + 4.0f, (float) lookahead, vibrato));
+            const auto xfade = crossfade > 0 ? (float) crossfade / (float) crossfadeLength : 0.0f;
+            if (crossfade > 0) --crossfade;
+
+            float detect = 0.0f;
+            for (int c = 0; c < numCh; ++c)
+            {
+                auto& st = ch[(size_t) c];
+                st.pitchBuf[(size_t) st.pitchWrite] = x[c];
+                if (++st.pitchWrite >= (int) st.pitchBuf.size()) st.pitchWrite = 0;
+
+                auto v = readPitch (st, readDelay);
+                if (xfade > 0.0f)
+                    v = v * (1.0f - xfade) + readPitch (st, jlimit (2.0f, maxDelay, oldDelay)) * xfade;
+
+                if (octActive)
+                {
+                    // octave down: divide-by-two flip-flop on the fundamental; octave up: full-wave rectifier
+                    const auto fund = st.octLow.process (v);
+                    if (fund < -1.0e-4f) st.octWasNegative = true;
+                    else if (fund > 1.0e-4f && st.octWasNegative)
+                    {
+                        st.octWasNegative = false;
+                        st.octFlip = -st.octFlip;
+                    }
+                    const auto sub = st.octSub.process (fund * st.octFlip) * 1.8f;
+                    const auto up = st.octUpHigh.process (std::abs (fund)) * 1.6f;
+                    v += p.octDown * sub + p.octUp * up;
+                }
+
+                x[c] = v;
+                detect = jmax (detect, std::abs (v));
+            }
+            if (crossfade == 0)
+                oldDelay = readDelay;
 
             // linked note detection (808s are monophonic)
             envFast = follow (envFast, detect, fastA, fastR);
@@ -320,7 +493,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                     high = v;
                 }
 
-                lowBuf.setSample (c, i, st.lowDelay.process (low, latency));
+                lowBuf.setSample (c, i, st.lowDelay.process (low, osMaxLatency));
                 preBuf.setSample (c, i, high);
                 data[c][i] = high;
             }
@@ -408,8 +581,16 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             const auto m = mixAmt.getNextValue();
             const auto b = bypassAmt.getNextValue();
 
+            if (wobbleFilterOn)
+                wobbleFilter.setCutoffFrequency (jmin (wobbleCutoff[(size_t) i], (float) fs * 0.45f));
+
             for (int c = 0; c < numCh; ++c)
-                y[c] = (y[c] * agGain + lowBuf.getSample (c, i)) * duckGain;
+            {
+                auto v = (y[c] * agGain + lowBuf.getSample (c, i)) * duckGain * wobbleGain[(size_t) i];
+                if (wobbleFilterOn)
+                    v = wobbleFilter.processSample (c, v);
+                y[c] = v;
+            }
 
             if (numCh == 2)
             {

@@ -114,7 +114,7 @@ void LedToggle::paintButton (Graphics& g, bool over, bool)
     }
     else
     {
-        g.setFont (fonts->bold (jmin (22.0f, r.getHeight() * 0.5f)));
+        g.setFont (fonts->bold (jmin (30.0f, r.getHeight() * 0.5f)));
         g.drawText (getButtonText(), r.withTrimmedRight (r.getHeight()).withTrimmedLeft (8.0f), Justification::centredLeft, false);
     }
 }
@@ -158,7 +158,7 @@ void ChoiceSelector::paint (Graphics& g)
         g.setColour (sel ? Colour (0xffff4b3c) : Colour (0xff8b877f).withAlpha (0.45f));
         g.drawRect (r.reduced (3.0f), sel ? 1.6f : 1.1f);
         g.setColour (sel ? Colour (0xffffe5de) : Colour (0xffd9d4ca));
-        g.setFont (fonts->sans (jmin (22.0f, r.getHeight() * 0.45f)));
+        g.setFont (fonts->sans (jmin (28.0f, r.getHeight() * 0.48f)));
         g.drawFittedText (names[i], r.reduced (4.0f, 0.0f).toNearestInt(), Justification::centred, 1, 0.7f);
     }
 }
@@ -213,8 +213,8 @@ void Meter::paint (Graphics& g)
     g.setColour (Colour (0xff0b0b0b));
     g.fillRect (r);
 
-    const auto labelH = 26.0f;
-    const auto scaleW = 30.0f;
+    const auto labelH = 30.0f;
+    const auto scaleW = 34.0f;
     auto bars = r.reduced (8.0f).withTrimmedBottom (labelH).withTrimmedRight (scaleW);
     const auto barW = (bars.getWidth() - 10.0f) * 0.5f;
 
@@ -234,12 +234,12 @@ void Meter::paint (Graphics& g)
         }
 
         g.setColour (Palette::text);
-        g.setFont (fonts->bold (20.0f));
+        g.setFont (fonts->bold (24.0f));
         g.drawText (b == 0 ? "IN" : "OUT", Rectangle<float> (x - 6.0f, bars.getBottom() + 4.0f, barW + 12.0f, labelH),
                     Justification::centred, false);
     }
 
-    g.setFont (fonts->mono (14.0f));
+    g.setFont (fonts->mono (17.0f));
     g.setColour (Palette::textDim);
     for (auto db : { 0.0f, -6.0f, -12.0f, -24.0f, -48.0f })
     {

@@ -95,7 +95,7 @@ void LookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h, flo
     g.setColour (Palette::track);
     g.strokePath (track, PathStrokeType (arcW, PathStrokeType::curved, PathStrokeType::butt));
 
-    const auto from = bipolar ? (startAngle + endAngle) * 0.5f : startAngle;
+    const auto from = bipolar ? (startAngle + endAngle) * 0.5f : ((bool) props["fromEnd"] ? endAngle : startAngle);
     if (enabled && std::abs (angle - from) > 0.01f)
     {
         Path value;

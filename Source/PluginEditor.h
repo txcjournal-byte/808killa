@@ -13,7 +13,7 @@ public:
     void paint (juce::Graphics&) override;
     void setStyleText (const juce::String& title, const juce::String& description);
 
-    UI::Knob kill, length, punch, dirt, duck;
+    UI::Knob kill, length, punch, dirt, duck, bend, wobble;
 
 private:
     juce::String styleTitle, styleDescription;

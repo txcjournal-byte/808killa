@@ -53,6 +53,21 @@ K808Processor::K808Processor()
     raw.outGain = rawFor (ParamIDs::outGain);
     raw.mix = rawFor (ParamIDs::mix);
     raw.phone = rawFor (ParamIDs::phone);
+    raw.pitchOn = rawFor (ParamIDs::pitchOn);
+    raw.knock = rawFor (ParamIDs::knock);
+    raw.knockTime = rawFor (ParamIDs::knockTime);
+    raw.dive = rawFor (ParamIDs::dive);
+    raw.diveTime = rawFor (ParamIDs::diveTime);
+    raw.diveDelay = rawFor (ParamIDs::diveDelay);
+    raw.octDown = rawFor (ParamIDs::octDown);
+    raw.octUp = rawFor (ParamIDs::octUp);
+    raw.wobbleOn = rawFor (ParamIDs::wobbleOn);
+    raw.wobble = rawFor (ParamIDs::wobble);
+    raw.wobbleTarget = rawFor (ParamIDs::wobbleTarget);
+    raw.wobbleRate = rawFor (ParamIDs::wobbleRate);
+    raw.wobbleShape = rawFor (ParamIDs::wobbleShape);
+    raw.wobbleFade = rawFor (ParamIDs::wobbleFade);
+    raw.wobbleRetrig = rawFor (ParamIDs::wobbleRetrig);
 
     bypassParam = apvts.getParameter (ParamIDs::bypass);
 
@@ -105,6 +120,23 @@ EngineParams K808Processor::readParams() const
     p.kill = raw.kill->load();
     p.inGainDb = raw.inGain->load();
     p.bypass = raw.bypass->load() > 0.5f;
+
+    p.pitchOn = raw.pitchOn->load() > 0.5f;
+    p.knock = raw.knock->load();
+    p.knockTimeMs = raw.knockTime->load();
+    p.dive = raw.dive->load();
+    p.diveTimeMs = raw.diveTime->load();
+    p.diveDelayMs = raw.diveDelay->load();
+    p.octDown = raw.octDown->load();
+    p.octUp = raw.octUp->load();
+
+    p.wobbleOn = raw.wobbleOn->load() > 0.5f;
+    p.wobble = raw.wobble->load();
+    p.wobbleTarget = (int) raw.wobbleTarget->load();
+    p.wobbleRate = (int) raw.wobbleRate->load();
+    p.wobbleShape = (int) raw.wobbleShape->load();
+    p.wobbleFadeMs = raw.wobbleFade->load();
+    p.wobbleRetrig = raw.wobbleRetrig->load() > 0.5f;
 
     p.shapeOn = raw.shapeOn->load() > 0.5f;
     p.punch = raw.punch->load();
@@ -164,7 +196,15 @@ void K808Processor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         out.copyFrom (1, 0, out, 0, 0, numSamples);
 
     ignoreUnused (main);
-    const auto params = readParams();
+    auto params = readParams();
+
+    if (auto* host = getPlayHead())
+        if (const auto pos = host->getPosition())
+        {
+            params.bpm = pos->getBpm().orFallback (120.0);
+            params.ppq = pos->getPpqPosition().orFallback (0.0);
+            params.playing = pos->getIsPlaying();
+        }
 
     if (getBusCount (true) > 1 && getBus (true, 1)->isEnabled() && getChannelCountOfBus (true, 1) > 0)
     {

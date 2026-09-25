@@ -40,13 +40,14 @@ public:
 
     EngineParams readParams() const;
 
+    juce::UndoManager undoManager;
     juce::AudioProcessorValueTreeState apvts;
     PresetManager presets;
     Engine engine;
 
 private:
     // cached raw parameter pointers (lookups by name would allocate on the audio thread)
-    struct Raw { std::atomic<float>* style, *kill, *inGain, *bypass, *shapeOn, *punch, *punchClick, *length, *toneOn, *sub, *harmonics, *filterOn, *cutoff, *resonance, *slope, *tilt, *dirtOn, *dirtMode, *dirt, *dirtMix, *autoGain, *oversample, *cleanLow, *cleanFreq, *crushBits, *postFilter, *duckOn, *duck, *duckRel, *duckShape, *clipper, *ceiling, *monoBelow, *outGain, *mix, *phone, *pitchOn, *knock, *knockTime, *dive, *diveTime, *diveDelay, *octDown, *octUp, *wobbleOn, *wobble, *wobbleTarget, *wobbleRate, *wobbleShape, *wobbleFade, *wobbleRetrig; } raw {};
+    struct Raw { std::atomic<float>* style, *kill, *inGain, *bypass, *shapeOn, *punch, *punchClick, *length, *toneOn, *sub, *harmonics, *filterOn, *cutoff, *resonance, *slope, *tilt, *dirtOn, *dirtMode, *dirt, *dirtMix, *autoGain, *oversample, *cleanLow, *cleanFreq, *crushBits, *postFilter, *duckOn, *duck, *duckRel, *duckShape, *clipper, *ceiling, *monoBelow, *outGain, *mix, *phone, *pitchOn, *knock, *knockTime, *dive, *diveTime, *diveDelay, *octDown, *octUp, *wobbleOn, *wobble, *wobbleTarget, *wobbleRate, *wobbleShape, *wobbleFade, *wobbleRetrig, *chopOn, *chop, *chopPattern, *chopGate, *chopSmooth, *width; } raw {};
     juce::AudioProcessorParameter* bypassParam = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (K808Processor)

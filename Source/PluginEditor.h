@@ -12,11 +12,12 @@ public:
     explicit SimplePage (K808Processor&);
     void paint (juce::Graphics&) override;
     void setStyleText (const juce::String& title, const juce::String& description);
+    void setTunerText (const juce::String& text);
 
-    UI::Knob kill, length, punch, dirt, duck, bend, wobble;
+    UI::Knob kill, length, punch, dirt, sub, bend, wobble;
 
 private:
-    juce::String styleTitle, styleDescription;
+    juce::String styleTitle, styleDescription, tunerText { "NOTE --     KEY --" };
     juce::SharedResourcePointer<Look::Fonts> fonts;
 };
 
@@ -47,7 +48,7 @@ private:
     std::vector<Tab> tabs;
     juce::OwnedArray<UI::FlatButton> tabButtons;
     juce::OwnedArray<juce::Component> owned;
-    std::unique_ptr<UI::LedToggle> sectionToggles[8];
+    std::unique_ptr<UI::LedToggle> sectionToggles[9];
     UI::FlatButton resetButton { "RESET" }, openFolderButton { "OPEN PRESETS FOLDER" };
     int current = 0;
     juce::SharedResourcePointer<Look::Fonts> fonts;
@@ -89,6 +90,7 @@ private:
     void showPresetMenu();
     void savePresetAs();
     void refreshPresetLabel();
+    void updateTuner();
 
     K808Processor& processor;
     Look::LookAndFeel lnf;
@@ -96,7 +98,7 @@ private:
     Canvas canvas;
 
     UI::FlatButton simpleTab { "SIMPLE" }, advancedTab { "ADVANCED" };
-    UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" };
+    UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" }, abButton { "A" };
 
     SimplePage simple;
     AdvancedPage advanced;
@@ -112,6 +114,11 @@ private:
     bool shownModified = false;
 
     std::unique_ptr<juce::AlertWindow> saveDialog;
+
+    // tuner
+    std::array<float, 12> keyHistogram {};
+    juce::String lastNote;
+    int noteHoldTicks = 0, tunerTick = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (K808Editor)
 };

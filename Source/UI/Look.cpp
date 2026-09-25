@@ -73,7 +73,8 @@ void LookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h, flo
     const auto outer = (float) jmin (w, h) * 0.5f;
     const auto arcR = outer - outer * 0.13f;
     const auto capR = arcR * 0.8f;
-    const auto arcW = jlimit (4.0f, 14.0f, arcR * 0.075f);
+    const auto hero = (bool) props["hero"];
+    const auto arcW = jlimit (4.0f, hero ? 20.0f : 14.0f, arcR * (hero ? 0.1f : 0.075f));
     const auto angle = startAngle + pos * (endAngle - startAngle);
     const auto enabled = slider.isEnabled();
 
@@ -118,6 +119,16 @@ void LookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h, flo
 
     // body rim
     const auto body = Rectangle<float> (capR * 2.0f, capR * 2.0f).withCentre (centre);
+
+    if (hero && enabled)
+    {
+        // the main KILL knob glows red with its value
+        for (int i = 3; i > 0; --i)
+        {
+            g.setColour (Palette::redGlow.withAlpha ((0.06f + 0.1f * pos) / (float) i));
+            g.drawEllipse (body.expanded ((float) i * 5.0f), 6.0f);
+        }
+    }
     g.setGradientFill (ColourGradient (Colour (0xff3a3835), body.getX(), body.getY(),
                                        Colour (0xff030303), body.getRight(), body.getBottom(), false));
     g.fillEllipse (body);

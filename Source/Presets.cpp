@@ -30,8 +30,10 @@ namespace
                                                { cleanLow, 1 }, { clipper, 0.25f }, { sub, 2.0f }, { knock, 5.0f }, { knockTime, 25.0f } } },
             { "Memphis Phonk", "Styles", 1, { { length, -0.2f }, { punch, 0.45f }, { dirtMode, 2 }, { dirt, 0.75f }, { crushBits, 12 },
                                                { filterOn, 1 }, { cutoff, 4000.0f }, { clipper, 0.5f }, { sub, 0.0f }, { wobble, 0.15f }, { wobbleTarget, 0 }, { wobbleRate, 1 } } },
-            { "Rage Underground", "Styles", 2, { { punch, 0.45f }, { dirtMode, 4 }, { dirt, 1.0f }, { clipper, 0.8f }, { sub, 3.0f } } },
-            { "Detroit Clip", "Styles", 3, { { length, -0.3f }, { punch, 0.75f }, { dirtMode, 1 }, { dirt, 0.85f }, { clipper, 0.95f }, { sub, 1.0f } } },
+            { "Rage Underground", "Styles", 2, { { punch, 0.5f }, { dirtMode, 4 }, { dirt, 0.55f }, { dirtMix, 0.8f }, { octUp, 0.35f },
+                                                  { harmonics, 0.3f }, { clipper, 0.8f }, { sub, 3.0f } } },
+            { "Detroit Clip", "Styles", 3, { { length, -0.3f }, { punch, 0.85f }, { punchClick, 0.45f }, { dirtMode, 1 }, { dirt, 0.9f },
+                                              { harmonics, 0.45f }, { knock, 3.0f }, { knockTime, 20.0f }, { clipper, 0.7f }, { sub, 1.0f } } },
             { "Drill Chicago", "Styles", 4, { { length, -0.4f }, { punch, 0.75f }, { punchClick, 0.3f }, { dirtMode, 0 }, { dirt, 0.5f },
                                                { filterOn, 1 }, { cutoff, 8000.0f }, { clipper, 0.5f }, { sub, 2.0f }, { knock, 6.0f }, { knockTime, 30.0f } } },
             { "Drill NY", "Styles", 5, { { length, -0.25f }, { punch, 0.75f }, { dirtMode, 1 }, { dirt, 0.6f }, { clipper, 0.75f }, { sub, 2.0f } } },
@@ -114,6 +116,9 @@ void PresetManager::parameterChanged (const String& id, float)
 
 void PresetManager::applyValues (const NamedValueSet& values)
 {
+    if (apvts.undoManager != nullptr)
+        apvts.undoManager->beginNewTransaction ("Load preset");
+
     loading = true;
 
     for (auto* p : apvts.processor.getParameters())
@@ -240,4 +245,26 @@ int PresetManager::getCurrentIndex() const
 void PresetManager::restoreFromState()
 {
     modified = false;
+}
+
+void PresetManager::toggleAB()
+{
+    abState[abSlot] = apvts.copyState();
+    abSlot = 1 - abSlot;
+
+    if (abState[abSlot].isValid())
+    {
+        loading = true;
+        apvts.replaceState (abState[abSlot].createCopy());
+        loading = false;
+    }
+    else
+    {
+        abState[abSlot] = apvts.copyState();   // first switch: B starts as a copy of A
+    }
+}
+
+void PresetManager::copyToOther()
+{
+    abState[1 - abSlot] = apvts.copyState();
 }

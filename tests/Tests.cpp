@@ -155,6 +155,27 @@ int main()
                 }
     }
 
+    // ---------------------------------------------------------------- chop + width
+    std::cout << "[1d] chop patterns and width" << std::endl;
+    {
+        K808Processor proc;
+        enableSidechain (proc, false);
+        proc.presets.init();
+        const auto plain = run (proc, makeInput (48000.0, 1.5), 48000.0, 512);
+        const auto plainRms = plain.getRMSLevel (0, 0, plain.getNumSamples());
+        for (int pattern = 0; pattern < 7; ++pattern)
+        {
+            proc.presets.init();
+            setParam (proc, ParamIDs::chop, 1.0f);
+            setParam (proc, ParamIDs::chopPattern, (float) pattern);
+            setParam (proc, ParamIDs::width, 1.0f);
+            const auto out = run (proc, makeInput (48000.0, 1.5), 48000.0, 512);
+            const auto rms = out.getRMSLevel (0, 0, out.getNumSamples());
+            check (allFinite (out) && out.getMagnitude (0, out.getNumSamples()) < 2.0f, "chop pattern " + String (pattern));
+            check (rms < plainRms * 0.95f, "chop pattern " + String (pattern) + " does not cut (" + String (rms) + " vs " + String (plainRms) + ")");
+        }
+    }
+
     // ---------------------------------------------------------------- BEND really changes the pitch
     std::cout << "[1c] BEND -12 st halves the frequency" << std::endl;
     {

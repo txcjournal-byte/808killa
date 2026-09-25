@@ -8,7 +8,7 @@ K808Processor::K808Processor()
                           .withInput  ("Input",     AudioChannelSet::stereo(), true)
                           .withOutput ("Output",    AudioChannelSet::stereo(), true)
                           .withInput  ("Sidechain", AudioChannelSet::stereo(), false)),
-      apvts (*this, nullptr, "K808", createParameterLayout()),
+      apvts (*this, &undoManager, "K808", createParameterLayout()),
       presets (apvts)
 {
     auto rawFor = [this] (const char* id)
@@ -68,11 +68,18 @@ K808Processor::K808Processor()
     raw.wobbleShape = rawFor (ParamIDs::wobbleShape);
     raw.wobbleFade = rawFor (ParamIDs::wobbleFade);
     raw.wobbleRetrig = rawFor (ParamIDs::wobbleRetrig);
+    raw.chopOn = rawFor (ParamIDs::chopOn);
+    raw.chop = rawFor (ParamIDs::chop);
+    raw.chopPattern = rawFor (ParamIDs::chopPattern);
+    raw.chopGate = rawFor (ParamIDs::chopGate);
+    raw.chopSmooth = rawFor (ParamIDs::chopSmooth);
+    raw.width = rawFor (ParamIDs::width);
 
     bypassParam = apvts.getParameter (ParamIDs::bypass);
 
-    // start on the first style
+    // start on the first style (not undoable)
     presets.load (0);
+    undoManager.clearUndoHistory();
 }
 
 bool K808Processor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -137,6 +144,13 @@ EngineParams K808Processor::readParams() const
     p.wobbleShape = (int) raw.wobbleShape->load();
     p.wobbleFadeMs = raw.wobbleFade->load();
     p.wobbleRetrig = raw.wobbleRetrig->load() > 0.5f;
+
+    p.chopOn = raw.chopOn->load() > 0.5f;
+    p.chop = raw.chop->load();
+    p.chopPattern = (int) raw.chopPattern->load();
+    p.chopGate = raw.chopGate->load();
+    p.chopSmooth = raw.chopSmooth->load();
+    p.width = raw.width->load();
 
     p.shapeOn = raw.shapeOn->load() > 0.5f;
     p.punch = raw.punch->load();

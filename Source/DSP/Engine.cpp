@@ -66,6 +66,14 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
     driveGain.assign ((size_t) maxBlock, 1.0f);
     wobbleGain.assign ((size_t) maxBlock, 1.0f);
     wobbleCutoff.assign ((size_t) maxBlock, 20000.0f);
+    chopGain.assign ((size_t) maxBlock, 1.0f);
+    widthDelay.prepare ((int) (fs * 0.02));
+    widthHp1.setHighPass (fs, 150.0, 0.707);
+    widthHp2.setHighPass (fs, 150.0, 0.707);
+    tunerFactor = jmax (1, roundToInt (fs / 2000.0));
+    tunerRate = fs / tunerFactor;
+    tunerLp1.setLowPass (fs, 400.0, 0.707);
+    tunerLp2.setLowPass (fs, 400.0, 0.707);
 
     const dsp::ProcessSpec spec { fs, (uint32) maxBlock, 2 };
     cleanSplit.prepare (spec);
@@ -128,6 +136,11 @@ void Engine::reset()
     lfoPhase = 0.0;
     sampleHold = 0.0f;
     wobbleFilter.reset();
+    widthDelay.reset();
+    for (auto* b : { &widthHp1, &widthHp2, &tunerLp1, &tunerLp2 })
+        b->reset();
+    chopBeat = 0.0;
+    chopLevel = 1.0f;
 
     for (auto& os : oversamplers)
         if (os != nullptr)
@@ -283,6 +296,19 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     const auto maxDelay = (float) (ch[0].pitchBuf.size() - 4);
     const auto semitoneToRate = std::log (2.0f) / 12.0f;
 
+    // wobble pitch: keep the vibrato window centred so wide, slow wobbles never hit the lookahead limit
+    const auto lfoHz = (float) (bpm / 60.0 * cpb);
+    const auto vibratoCentre = wobblePitch
+        ? jmin ((float) lookahead * 3.0f, p.wobble * (std::exp2 (5.0f / 12.0f) - 1.0f) / (MathConstants<float>::twoPi * lfoHz) * (float) fs)
+        : 0.0f;
+
+    // chop: tempo-synced gate, locked to the DAW grid while playing
+    const auto chopActive = p.chopOn && p.chop > 0.001f;
+    if (p.playing)
+        chopBeat = p.ppq;
+    const auto beatInc = bpm / 60.0 / fs;
+    const auto chopCoef = 1.0f - onePole (0.0005 + p.chopSmooth * 0.025, fs);
+
     const auto fastA = onePole (0.0005, fs), fastR = onePole (0.030, fs);
     const auto slowA = onePole (0.020, fs),  slowR = onePole (0.150, fs);
     const auto gateA = onePole (0.001, fs),  gateR = onePole (0.030, fs);
@@ -330,6 +356,52 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 detectIn = jmax (detectIn, std::abs (x[c]));
             }
 
+            // ---- tuner feed (mono input, low-passed and decimated)
+            {
+                const auto mono = numCh > 1 ? 0.5f * (x[0] + x[1]) : x[0];
+                const auto lp = tunerLp2.process (tunerLp1.process (mono));
+                if (++tunerCount >= tunerFactor)
+                {
+                    tunerCount = 0;
+                    const auto w = tunerWrite.load (std::memory_order_relaxed);
+                    tunerRing[(size_t) w] = lp;
+                    tunerWrite.store ((w + 1) % tunerSize, std::memory_order_release);
+                }
+            }
+
+            // ---- chop gate
+            if (chopActive)
+            {
+                static constexpr int gross[16]   = { 1,0,1,1, 0,1,0,1, 1,0,1,0, 1,0,1,1 };
+                static constexpr int stutter[16] = { 1,1,1,1, 1,0,1,0, 1,1,1,1, 0,1,0,1 };
+                const auto beat = chopBeat;
+                const auto beatInBar = beat - 4.0 * std::floor (beat / 4.0);
+                double stepsPerBeat = 4.0;
+                bool stepOn = true;
+                switch (p.chopPattern)
+                {
+                    case 0: stepsPerBeat = 2.0; break;
+                    case 1: stepsPerBeat = 4.0; break;
+                    case 2: stepsPerBeat = 6.0; break;
+                    case 3: stepsPerBeat = 8.0; break;
+                    case 4: stepsPerBeat = beatInBar < 2.0 ? 2.0 : (beatInBar < 3.0 ? 4.0 : (beatInBar < 3.5 ? 8.0 : 16.0)); break;
+                    case 5: stepOn = gross[(int) (beatInBar * 4.0) & 15] != 0; break;
+                    default: stepOn = stutter[(int) (beatInBar * 4.0) & 15] != 0; break;
+                }
+                const auto stepPos = beat * stepsPerBeat;
+                const auto inStep = (float) (stepPos - std::floor (stepPos));
+                const auto open = stepOn && inStep < jlimit (0.05f, 0.95f, p.chopGate);
+                const auto target = open ? 1.0f : 1.0f - p.chop;
+                chopLevel += (target - chopLevel) * chopCoef;
+                chopGain[(size_t) i] = chopLevel;
+            }
+            else
+            {
+                chopLevel = 1.0f;
+                chopGain[(size_t) i] = 1.0f;
+            }
+            chopBeat += beatInc;
+
             // ---- note onsets on the incoming signal; they reach the read head `lookahead` samples later
             preFast = follow (preFast, detectIn, fastA, fastR);
             preSlow = follow (preSlow, detectIn, slowA, slowR);
@@ -366,8 +438,16 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             const auto fade = fadeSamples > 1.0f ? jmin (1.0f, (float) noteSamples / fadeSamples) : 1.0f;
             const auto wobbleDepth = wobbleActive ? p.wobble * fade : 0.0f;
             const auto lfo = lfoValue (p.wobbleShape, (float) lfoPhase);
-            wobbleGain[(size_t) i] = wobbleVolume ? 1.0f - wobbleDepth * (0.5f - 0.5f * lfo) : 1.0f;
-            wobbleCutoff[(size_t) i] = wobbleFilterOn ? 14000.0f * std::exp2 (-wobbleDepth * 6.0f * (0.5f - 0.5f * lfo)) : 20000.0f;
+            if (wobbleVolume)
+            {
+                const auto wg = 1.0f - wobbleDepth * (0.5f - 0.5f * lfo);
+                wobbleGain[(size_t) i] = wg * wg;
+            }
+            else
+            {
+                wobbleGain[(size_t) i] = 1.0f;
+            }
+            wobbleCutoff[(size_t) i] = wobbleFilterOn ? 16000.0f * std::exp2 (-wobbleDepth * 8.0f * (0.5f - 0.5f * lfo)) : 20000.0f;
 
             // ---- pitch envelope -> vari-speed read position
             float semis = 0.0f;
@@ -387,9 +467,9 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 pitchDelay = (float) lookahead;
 
             if (wobblePitch)
-                vibrato -= wobbleDepth * 2.0f * lfo * semitoneToRate;     // integrate the pitch deviation
-            vibrato -= vibrato * vibratoLeak;
-            const auto readDelay = jlimit (2.0f, maxDelay, pitchDelay + jlimit (-(float) lookahead + 4.0f, (float) lookahead, vibrato));
+                vibrato -= wobbleDepth * 5.0f * lfo * semitoneToRate;     // integrate the pitch deviation (up to +-5 st)
+            vibrato -= (vibrato - vibratoCentre) * vibratoLeak;
+            const auto readDelay = jlimit (2.0f, maxDelay, pitchDelay + jlimit (-(float) lookahead + 4.0f, (float) lookahead * 4.0f, vibrato));
             const auto xfade = crossfade > 0 ? (float) crossfade / (float) crossfadeLength : 0.0f;
             if (crossfade > 0) --crossfade;
 
@@ -586,7 +666,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
 
             for (int c = 0; c < numCh; ++c)
             {
-                auto v = (y[c] * agGain + lowBuf.getSample (c, i)) * duckGain * wobbleGain[(size_t) i];
+                auto v = (y[c] * agGain + lowBuf.getSample (c, i)) * duckGain * wobbleGain[(size_t) i] * chopGain[(size_t) i];
                 if (wobbleFilterOn)
                     v = wobbleFilter.processSample (c, v);
                 y[c] = v;
@@ -603,6 +683,17 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                     y[0] = low + highL;
                     y[1] = low + highR;
                 }
+            }
+
+            // width: decorrelated copy of the upper band added to L and subtracted from R
+            // (the sum is unchanged, so mono playback and the sub stay intact)
+            if (numCh == 2 && p.width > 0.001f)
+            {
+                const auto mid = 0.5f * (y[0] + y[1]);
+                const auto high = widthHp2.process (widthHp1.process (mid));
+                const auto side = widthDelay.process (high, (int) (fs * 0.011)) * p.width * 0.8f;
+                y[0] += side;
+                y[1] -= side;
             }
 
             for (int c = 0; c < numCh; ++c)

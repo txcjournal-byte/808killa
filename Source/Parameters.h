@@ -31,6 +31,13 @@ namespace ParamIDs
     inline constexpr auto wobbleFade   = "wobble_fade";
     inline constexpr auto wobbleRetrig = "wobble_retrig";
 
+    // chop (tempo-synced gate)
+    inline constexpr auto chopOn      = "chop_on";
+    inline constexpr auto chop        = "chop";
+    inline constexpr auto chopPattern = "chop_pattern";
+    inline constexpr auto chopGate    = "chop_gate";
+    inline constexpr auto chopSmooth  = "chop_smooth";
+
     // shape
     inline constexpr auto shapeOn    = "shape_on";
     inline constexpr auto punch      = "punch";
@@ -71,6 +78,7 @@ namespace ParamIDs
     inline constexpr auto monoBelow  = "mono_below";
     inline constexpr auto outGain    = "out_gain";
     inline constexpr auto mix        = "mix";
+    inline constexpr auto width      = "width";
     inline constexpr auto phone      = "phone_check";
 }
 
@@ -85,6 +93,7 @@ namespace Choices
     const juce::StringArray wobbleTargets { "Pitch", "Volume", "Filter", "All" };
     const juce::StringArray wobbleRates { "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/8D", "1/16", "1/16T", "1/32" };
     const juce::StringArray wobbleShapes { "Sine", "Triangle", "Saw", "Square", "S&H" };
+    const juce::StringArray chopPatterns { "1/8", "1/16", "1/16T", "1/32", "Roll", "Gross", "Stutter" };
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

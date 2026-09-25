@@ -37,6 +37,11 @@ public:
     // restore name after the host loaded a project
     void restoreFromState();
 
+    // A/B comparison: two independent snapshots of all settings
+    void toggleAB();
+    void copyToOther();
+    bool isOnB() const noexcept { return abSlot == 1; }
+
 private:
     void parameterChanged (const juce::String&, float) override;
     void applyValues (const juce::NamedValueSet& values);
@@ -46,4 +51,6 @@ private:
     juce::Array<PresetInfo> presets;
     std::atomic<bool> modified { false };
     std::atomic<bool> loading { false };
+    juce::ValueTree abState[2];
+    int abSlot = 0;
 };

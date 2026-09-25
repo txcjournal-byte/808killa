@@ -16,8 +16,6 @@ namespace
         static const std::map<String, const char*> text = {
             { "Atlanta Clean",     "Clean, long and punchy. The sub stays pure." },
             { "Memphis Phonk",     "Dirty and lo-fi: overdriven tape and crushed bits." },
-            { "Rage Underground",  "Heavy foldback saturation, clipped hard." },
-            { "Detroit Clip",      "Aggressive, short and clipped very hard." },
             { "Drill Chicago",     "Short and hard with a strong knock." },
             { "Drill NY",          "Short and hard with a clipped edge." },
             { "Drill UK",          "Hard with warm tape grit." },
@@ -38,10 +36,60 @@ namespace
             { "Wobble Wave",       "Pitch, volume and filter wobble in 1/16." },
             { "Triplet Wub",       "Filter wub in 1/8 triplets." },
             { "Tape Drop",         "Slow tape-stop style pitch drop." },
+            { "Detroit Clip",      "Aggressive and loud: hard clipped with a sharp knock." },
+            { "Rage Underground",  "Dirty folded saturation with a gritty top octave." },
         };
         const auto it = text.find (preset);
         return it != text.end() ? it->second : "Your own preset.";
     }
+}
+
+//==============================================================================
+namespace
+{
+    // YIN pitch detection on the decimated tuner feed. Returns 0 when no clear pitch.
+    float detectPitch (const float* x, int n, double rate)
+    {
+        const int maxTau = jmin (n / 2, (int) (rate / 25.0));
+        const int minTau = jmax (2, (int) (rate / 300.0));
+        const int w = n - maxTau;
+        if (w < 32) return 0.0f;
+
+        std::vector<float> d ((size_t) maxTau + 1, 0.0f);
+        for (int tau = 1; tau <= maxTau; ++tau)
+        {
+            float sum = 0.0f;
+            for (int i = 0; i < w; ++i)
+            {
+                const auto diff = x[i] - x[i + tau];
+                sum += diff * diff;
+            }
+            d[(size_t) tau] = sum;
+        }
+
+        float running = 0.0f;
+        std::vector<float> cm ((size_t) maxTau + 1, 1.0f);
+        for (int tau = 1; tau <= maxTau; ++tau)
+        {
+            running += d[(size_t) tau];
+            cm[(size_t) tau] = running > 0.0f ? d[(size_t) tau] * (float) tau / running : 1.0f;
+        }
+
+        for (int tau = minTau; tau < maxTau; ++tau)
+        {
+            if (cm[(size_t) tau] < 0.15f)
+            {
+                while (tau + 1 < maxTau && cm[(size_t) tau + 1] < cm[(size_t) tau]) ++tau;
+                const auto a = cm[(size_t) tau - 1], b = cm[(size_t) tau], c = cm[(size_t) tau + 1];
+                const auto denom = a - 2.0f * b + c;
+                const auto shift = std::abs (denom) > 1.0e-9f ? 0.5f * (a - c) / denom : 0.0f;
+                return (float) (rate / ((float) tau + jlimit (-0.5f, 0.5f, shift)));
+            }
+        }
+        return 0.0f;
+    }
+
+    const char* noteNames[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
 }
 
 //==============================================================================
@@ -50,21 +98,31 @@ SimplePage::SimplePage (K808Processor& p)
       length (p.apvts, ParamIDs::length, "LENGTH", "Shorten (left) or stretch (right) the tail of every 808 note.", true),
       punch  (p.apvts, ParamIDs::punch,  "PUNCH",  "Boosts the start of every note so the 808 hits harder."),
       dirt   (p.apvts, ParamIDs::dirt,   "DIRT",   "Amount of distortion. The type of dirt is set by the style (ADVANCED > DIRT)."),
-      duck   (p.apvts, ParamIDs::duck,   "DUCK",   "Ducks the 808 under the kick. Needs the kick routed to the sidechain input."),
+      sub    (p.apvts, ParamIDs::sub,    "SUB",    "How much sub (low end around 55 Hz) the 808 gets."),
       bend   (p.apvts, ParamIDs::dive,   "BEND",   "Pitch dive on every note (trap bend). Timing is in ADVANCED > PITCH.", false),
       wobble (p.apvts, ParamIDs::wobble, "WOBBLE", "Tempo-synced wobble. Target, rate and shape are in ADVANCED > WOBBLE.")
 {
-    for (auto* k : { &kill, &length, &punch, &dirt, &duck, &bend, &wobble })
+    for (auto* k : { &kill, &length, &punch, &dirt, &sub, &bend, &wobble })
         addAndMakeVisible (*k);
     bend.getSlider().getProperties().set ("fromEnd", true);   // arc grows as the dive gets deeper
 
     kill.setKnobArea ({ 380, 96, 400, 400 }, 58.0f);
     length.setKnobArea ({ 85, 60, 170, 170 }, 38.0f);
     punch.setKnobArea ({ 85, 330, 170, 170 }, 38.0f);
-    duck.setKnobArea ({ 85, 600, 170, 170 }, 38.0f);
+    sub.setKnobArea ({ 85, 600, 170, 170 }, 38.0f);
+    kill.getSlider().getProperties().set ("hero", true);
     dirt.setKnobArea ({ 905, 60, 170, 170 }, 38.0f);
     bend.setKnobArea ({ 905, 330, 170, 170 }, 38.0f);
     wobble.setKnobArea ({ 905, 600, 170, 170 }, 38.0f);
+}
+
+void SimplePage::setTunerText (const String& text)
+{
+    if (text != tunerText)
+    {
+        tunerText = text;
+        repaint (300, 780, getWidth() - 600, 66);
+    }
 }
 
 void SimplePage::setStyleText (const String& title, const String& description)
@@ -82,15 +140,25 @@ void SimplePage::paint (Graphics& g)
     drawPanel (g, r);
 
     // style description under KILL
-    const Rectangle<float> info (300.0f, 650.0f, r.getWidth() - 600.0f, 160.0f);
+    const Rectangle<float> info (300.0f, 632.0f, r.getWidth() - 600.0f, 214.0f);
     drawPanel (g, info, true);
     g.setColour (Palette::redBright);
     g.setFont (fonts->bold (44.0f));
-    g.drawText (styleTitle.toUpperCase(), info.withHeight (72.0f).translated (0.0f, 12.0f), Justification::centred, false);
+    g.drawText (styleTitle.toUpperCase(), info.withHeight (64.0f).translated (0.0f, 10.0f), Justification::centred, false);
     g.setColour (Palette::text);
     g.setFont (fonts->sans (27.0f));
-    g.drawFittedText (styleDescription, info.withTrimmedTop (80.0f).withTrimmedBottom (14.0f).reduced (16.0f, 0.0f).toNearestInt(),
+    g.drawFittedText (styleDescription, info.withTrimmedTop (72.0f).withHeight (70.0f).reduced (16.0f, 0.0f).toNearestInt(),
                       Justification::centred, 2);
+
+    // tuner line
+    const auto tunerArea = info.withTrimmedTop (148.0f).reduced (20.0f, 10.0f);
+    g.setColour (Colour (0xff050505));
+    g.fillRoundedRectangle (tunerArea, 3.0f);
+    g.setColour (Palette::boxEdge);
+    g.drawRoundedRectangle (tunerArea, 3.0f, 1.0f);
+    g.setColour (tunerText.startsWith ("NOTE --") ? Palette::textDim : Palette::text);
+    g.setFont (fonts->mono (30.0f));
+    g.drawText (tunerText, tunerArea, Justification::centred, false);
 }
 
 //==============================================================================
@@ -127,11 +195,14 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
         { "WOBBLE",   wobbleOn, {}, {} },
         { "TONE",     toneOn,   {}, {} },
         { "DIRT",     dirtOn,   {}, {} },
-        { "DUCK",     duckOn,   "Route your kick to the sidechain input of 808 KILLA (FL Studio: kick mixer track > "
-                                "'Sidechain to this track' on the 808 track, then pick it as the plugin's sidechain input).", {} },
+        { "DUCK",     duckOn,   "Only needed when your beat has a kick. Send the kick to the 808 track as sidechain "
+                                "(FL Studio: kick mixer track > right-click the arrow to the 808 track > Sidechain to this track).", {} },
         { "OUTPUT",   {},       {}, {} },
         { "SETTINGS", {},       {}, {} },
+        { "CHOP",     chopOn,   "Rhythmic gate locked to your DAW tempo. ROLL speeds up towards the end of the bar, "
+                                "GROSS and STUTTER are ready-made patterns.", {} },
     };
+    static constexpr int displayOrder[] = { 0, 1, 2, 8, 3, 4, 5, 6, 7 };
 
     int visibleTabs = 0;
     for (int i = 0; i < (int) tabs.size(); ++i)
@@ -139,7 +210,9 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
         auto* b = tabButtons.add (new UI::FlatButton (tabs[(size_t) i].name));
         b->textHeight = 23.0f;
         b->onClick = [this, i] { showTab (i); };
-        b->setBounds (12 + visibleTabs * 142, 14, 139, 52);
+        const auto slot = (int) (std::find (std::begin (displayOrder), std::end (displayOrder), i) - std::begin (displayOrder));
+        b->setBounds (12 + slot * 126, 14, 123, 52);
+        b->textHeight = 21.0f;
         addAndMakeVisible (b);
         ++visibleTabs;
 
@@ -176,7 +249,7 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     knob (0, 1, 1, octUp, "OCT UP", "Adds a gritty octave above the 808.");
     for (auto* c : tabs[0].controls)
         if (auto* k = dynamic_cast<UI::Knob*> (c); k != nullptr && k->getY() > 400)
-            k->setTopLeftPosition (k->getX(), k->getY() - 20);
+            k->setTopLeftPosition (k->getX(), k->getY() - 60);
 
     // ---- WOBBLE
     add<UI::ChoiceSelector> (2, { 220, 150, 900, 58 }, s, wobbleTarget, "What the wobble moves: pitch, volume, filter or all of them.");
@@ -190,9 +263,9 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     add<UI::LedToggle> (2, { 560, 520, 300, 60 }, s, wobbleRetrig, "RETRIGGER", "Restart the wobble on every new note (off = locked to the DAW grid).");
 
     // ---- SHAPE
-    knob (1, 0, 0, punch, "PUNCH", "Boosts the attack of every note.");
-    knob (1, 1, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
-    knob (1, 2, 0, length, "LENGTH", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
+    knob (1, 1, 0, punch, "PUNCH", "Boosts the attack of every note.");
+    knob (1, 2, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
+    knob (1, 3, 0, length, "LENGTH", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
 
     // ---- TONE
     knob (3, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
@@ -218,9 +291,9 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     add<UI::ChoiceSelector> (4, { 700, 660, 420, 62 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
 
     // ---- DUCK
-    knob (5, 0, 0, duck, "DUCK", "How much the 808 ducks under the kick.");
-    knob (5, 1, 0, duckRel, "RELEASE", "How fast the 808 comes back after the kick.");
-    knob (5, 2, 0, duckShape, "SHAPE", "Soft (left) or hard (right) ducking curve.");
+    knob (5, 1, 0, duck, "DUCK", "How much the 808 ducks under the kick.");
+    knob (5, 2, 0, duckRel, "RELEASE", "How fast the 808 comes back after the kick.");
+    knob (5, 3, 0, duckShape, "SHAPE", "Soft (left) or hard (right) ducking curve.");
 
     // ---- OUTPUT
     knob (6, 0, 0, inGain, "INPUT", "Level going into the plugin.", true);
@@ -229,6 +302,16 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     knob (6, 3, 0, outGain, "OUTPUT", "Output level.", true);
     knob (6, 4, 0, mix, "MIX", "Dry / wet mix of the whole plugin.");
     knob (6, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
+    knob (6, 1, 1, width, "WIDTH", "Widens the upper part of the 808. The sub stays mono.");
+
+    // ---- CHOP
+    add<UI::ChoiceSelector> (8, { 220, 150, 900, 58 }, s, chopPattern, "Chop rhythm.");
+    knob (8, 1, 1, chop, "DEPTH", "How deep the chop cuts (100 % = silence between hits).");
+    knob (8, 2, 1, chopGate, "GATE", "How long each chop stays open.");
+    knob (8, 3, 1, chopSmooth, "SMOOTH", "Hard cuts (left) or soft pulsing (right).");
+    for (auto* c : tabs[8].controls)
+        if (auto* k = dynamic_cast<UI::Knob*> (c))
+            k->setTopLeftPosition (k->getX(), k->getY() - 200);
 
     // ---- SETTINGS
     openFolderButton.setBounds (40, 360, 420, 62);
@@ -266,6 +349,9 @@ void AdvancedPage::paint (Graphics& g)
     const auto& tab = tabs[(size_t) current];
     drawLabel (g, tab.name, { 40.0f, 82.0f, 400.0f, 56.0f }, 52.0f, Palette::ink, Justification::centredLeft);
 
+    if (tab.name == "CHOP")
+        drawLabel (g, "PATTERN", { 40.0f, 150.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
+
     if (tab.name == "WOBBLE")
     {
         drawLabel (g, "TARGET", { 40.0f, 150.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
@@ -275,11 +361,11 @@ void AdvancedPage::paint (Graphics& g)
 
     if (tab.note.isNotEmpty())
     {
-        const Rectangle<float> box (40.0f, tab.controls.empty() ? 160.0f : 700.0f, r.getWidth() - 80.0f, 130.0f);
+        const Rectangle<float> box (40.0f, tab.controls.empty() ? 160.0f : 660.0f, r.getWidth() - 80.0f, 180.0f);
         drawPanel (g, box, true);
         g.setColour (Palette::text);
-        g.setFont (fonts->sans (25.0f));
-        g.drawFittedText (tab.note, box.reduced (20.0f, 10.0f).toNearestInt(), Justification::centredLeft, 4);
+        g.setFont (fonts->sans (31.0f));
+        g.drawFittedText (tab.note, box.reduced (26.0f, 14.0f).toNearestInt(), Justification::centredLeft, 4, 1.0f);
     }
 
     if (tab.name == "SETTINGS")
@@ -353,12 +439,22 @@ K808Editor::K808Editor (K808Processor& p)
     simpleTab.setBounds (bar.getX(), bar.getY(), 150, bar.getHeight());
     advancedTab.setBounds (bar.getX() + 154, bar.getY(), 180, bar.getHeight());
     prevButton.setBounds (bar.getX() + 350, bar.getY(), 60, bar.getHeight());
-    presetButton.setBounds (bar.getX() + 414, bar.getY(), 480, bar.getHeight());
-    nextButton.setBounds (bar.getX() + 898, bar.getY(), 60, bar.getHeight());
+    presetButton.setBounds (bar.getX() + 414, bar.getY(), 410, bar.getHeight());
+    nextButton.setBounds (bar.getX() + 828, bar.getY(), 60, bar.getHeight());
+    abButton.setBounds (bar.getX() + 894, bar.getY(), 72, bar.getHeight());
+    abButton.setTooltip ("A/B compare: switch between two versions of your settings");
+    abButton.onClick = [this]
+    {
+        processor.presets.toggleAB();
+        abButton.setButtonText (processor.presets.isOnB() ? "B" : "A");
+        abButton.active = processor.presets.isOnB();
+        abButton.repaint();
+    };
+    canvas.addAndMakeVisible (abButton);
     saveButton.setBounds (bar.getRight() - 170, bar.getY(), 170, bar.getHeight());
 
     presetButton.textHeight = 31.0f;
-    for (auto* b : { &simpleTab, &advancedTab, &prevButton, &nextButton, &saveButton })
+    for (auto* b : { &simpleTab, &advancedTab, &prevButton, &nextButton, &saveButton, &abButton })
         b->textHeight = 25.0f;
     prevButton.setTooltip ("Previous preset");
     nextButton.setTooltip ("Next preset");
@@ -528,6 +624,11 @@ void K808Editor::showPresetMenu()
         }
 
     menu.addSeparator();
+    auto& undo = processor.undoManager;
+    menu.addItem (1005, "Undo", undo.canUndo());
+    menu.addItem (1006, "Redo", undo.canRedo());
+    menu.addItem (1007, String ("Copy ") + (pm.isOnB() ? "B to A" : "A to B"));
+    menu.addSeparator();
     menu.addItem (1001, "Save As...");
     menu.addItem (1002, "Revert changes", pm.isModified() && current >= 0);
     menu.addItem (1003, "Init (all defaults)");
@@ -541,6 +642,9 @@ void K808Editor::showPresetMenu()
                             else if (result == 1001)            savePresetAs();
                             else if (result == 1002)            presets.revert();
                             else if (result == 1003)            presets.init();
+                            else if (result == 1005)            processor.undoManager.undo();
+                            else if (result == 1006)            processor.undoManager.redo();
+                            else if (result == 1007)            presets.copyToOther();
                             else if (result == 1004)
                             {
                                 PresetManager::userFolder().createDirectory();
@@ -604,16 +708,70 @@ void K808Editor::timerCallback()
         canvas.repaint();
     }
 
-    // DUCK is only useful with a sidechain signal
-    const auto scActive = e.sidechainActive.load();
-    const auto duckAlpha = scActive ? 1.0f : 0.45f;
-    if (! approximatelyEqual (simple.duck.getAlpha(), duckAlpha))
+    if (++tunerTick >= 3)
     {
-        simple.duck.setAlpha (duckAlpha);
-        simple.duck.getSlider().setTooltip (scActive
-            ? "Ducks the 808 under the kick."
-            : "No sidechain signal. Send your kick to this track's sidechain input to use DUCK.");
+        tunerTick = 0;
+        updateTuner();
     }
 
     refreshPresetLabel();
+}
+
+void K808Editor::updateTuner()
+{
+    auto& e = processor.engine;
+    constexpr int n = 600;
+    float buf[n];
+    const auto w = e.tunerWrite.load (std::memory_order_acquire);
+    for (int i = 0; i < n; ++i)
+        buf[i] = e.tunerRing[(size_t) ((w - n + i + Engine::tunerSize) % Engine::tunerSize)];
+
+    float rms = 0.0f;
+    for (auto v : buf) rms += v * v;
+    rms = std::sqrt (rms / (float) n);
+
+    const auto freq = rms > 0.004f ? detectPitch (buf, n, e.tunerRate) : 0.0f;
+
+    for (auto& h : keyHistogram)
+        h *= 0.997f;
+
+    if (freq > 20.0f)
+    {
+        const auto midi = 69.0f + 12.0f * std::log2 (freq / 440.0f);
+        const auto nearest = roundToInt (midi);
+        const auto cents = roundToInt ((midi - (float) nearest) * 100.0f);
+        const auto pc = ((nearest % 12) + 12) % 12;
+        keyHistogram[(size_t) pc] += 1.0f;
+        lastNote = String (noteNames[pc]) + String (nearest / 12 - 1) + " " + (cents >= 0 ? "+" : "") + String (cents) + " ct";
+        noteHoldTicks = 6;
+    }
+    else if (noteHoldTicks > 0 && --noteHoldTicks == 0)
+    {
+        lastNote = {};
+    }
+
+    // key estimate (Krumhansl profiles) once enough notes were heard
+    String key = "--";
+    float total = 0.0f;
+    for (auto h : keyHistogram) total += h;
+    if (total > 15.0f)
+    {
+        static constexpr float major[12] = { 6.35f, 2.23f, 3.48f, 2.33f, 4.38f, 4.09f, 2.52f, 5.19f, 2.39f, 3.66f, 2.29f, 2.88f };
+        static constexpr float minor[12] = { 6.33f, 2.68f, 3.52f, 5.38f, 2.60f, 3.53f, 2.54f, 4.75f, 3.98f, 2.69f, 3.34f, 3.17f };
+        float best = -1.0e9f;
+        for (int tonic = 0; tonic < 12; ++tonic)
+            for (int mode = 0; mode < 2; ++mode)
+            {
+                float score = 0.0f;
+                for (int k = 0; k < 12; ++k)
+                    score += keyHistogram[(size_t) ((tonic + k) % 12)] * (mode == 0 ? major[k] : minor[k]);
+                if (score > best)
+                {
+                    best = score;
+                    key = String (noteNames[tonic]) + (mode == 0 ? " MAJ" : " MIN");
+                }
+            }
+    }
+
+    simple.setTunerText ("NOTE " + (lastNote.isEmpty() ? String ("--") : lastNote) + "     KEY " + key);
 }

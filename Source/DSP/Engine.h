@@ -22,6 +22,11 @@ struct EngineParams
     int wobbleTarget = 0, wobbleRate = 6, wobbleShape = 0;
     bool wobbleRetrig = true;
 
+    bool chopOn = true;
+    float chop = 0.0f, chopGate = 0.5f, chopSmooth = 0.2f;
+    int chopPattern = 1;
+    float width = 0.0f;
+
     // host transport (tempo sync)
     double bpm = 120.0, ppq = 0.0;
     bool playing = false;
@@ -72,6 +77,12 @@ public:
     std::atomic<float> inPeak { 0.0f }, outPeak { 0.0f }, shortTermLufs { -100.0f };
     std::atomic<bool> sidechainActive { false };
 
+    // tuner feed: input decimated to ~2 kHz (audio thread writes, UI reads the latest samples)
+    static constexpr int tunerSize = 4096;
+    std::vector<float> tunerRing = std::vector<float> ((size_t) tunerSize, 0.0f);
+    std::atomic<int> tunerWrite { 0 };
+    double tunerRate = 2000.0;
+
 private:
     struct Channel
     {
@@ -103,7 +114,12 @@ private:
     Biquad phoneHp1, phoneHp2, phonePeak, phoneLp;
 
     juce::AudioBuffer<float> dryBuf, lowBuf, preBuf;
-    std::vector<float> driveGain, wobbleGain, wobbleCutoff;
+    std::vector<float> driveGain, wobbleGain, wobbleCutoff, chopGain;
+    DelayLine widthDelay;
+    Biquad widthHp1, widthHp2, tunerLp1, tunerLp2;
+    int tunerFactor = 24, tunerCount = 0;
+    double chopBeat = 0.0;
+    float chopLevel = 1.0f;
     juce::dsp::StateVariableTPTFilter<float> wobbleFilter;
 
     // pitch FX state

@@ -91,6 +91,13 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     b.range (ParamIDs::wobbleFade, "Wobble Fade", NormalisableRange<float> (0.0f, 500.0f, 1.0f), 0.0f, ms);
     b.toggle (ParamIDs::wobbleRetrig, "Wobble Retrigger", true);
 
+    // ---- chop
+    b.toggle (ParamIDs::chopOn, "Chop On", true);
+    b.unit (ParamIDs::chop, "Chop", 0.0f);
+    b.choice (ParamIDs::chopPattern, "Chop Pattern", Choices::chopPatterns, 1);
+    b.unit (ParamIDs::chopGate, "Chop Gate", 0.5f);
+    b.unit (ParamIDs::chopSmooth, "Chop Smooth", 0.2f);
+
     // ---- shape
     b.toggle (ParamIDs::shapeOn, "Shape On", true);
     b.unit (ParamIDs::punch, "Punch", 0.3f);
@@ -137,6 +144,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     b.range (ParamIDs::mix, "Mix", NormalisableRange<float> (0.0f, 100.0f, 1.0f), 100.0f,
              [] (float v) { return String (roundToInt (v)) + " %"; });
     b.toggle (ParamIDs::phone, "Phone Check", false);
+    b.unit (ParamIDs::width, "Width", 0.0f);
 
     return std::move (b.layout);
 }
@@ -147,10 +155,11 @@ StringArray sectionParameters (const String& section)
 
     if (section == "PITCH")  return { pitchOn, knock, knockTime, dive, diveTime, diveDelay, octDown, octUp };
     if (section == "WOBBLE") return { wobbleOn, wobble, wobbleTarget, wobbleRate, wobbleShape, wobbleFade, wobbleRetrig };
+    if (section == "CHOP")   return { chopOn, chop, chopPattern, chopGate, chopSmooth };
     if (section == "SHAPE")  return { shapeOn, punch, punchClick, length };
     if (section == "TONE")   return { toneOn, sub, harmonics, filterOn, cutoff, resonance, slope, tilt };
     if (section == "DIRT")   return { dirtOn, dirtMode, dirt, dirtMix, autoGain, oversample, cleanLow, cleanFreq, crushBits, postFilter };
     if (section == "DUCK")   return { duckOn, duck, duckRel, duckShape };
-    if (section == "OUTPUT") return { clipper, ceiling, monoBelow, outGain, mix, phone, inGain };
+    if (section == "OUTPUT") return { clipper, ceiling, monoBelow, outGain, mix, phone, inGain, width };
     return {};
 }

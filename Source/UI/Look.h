@@ -49,5 +49,6 @@ namespace Look
 
         juce::Image knobFace;
         juce::SharedResourcePointer<Fonts> fonts;
+        float uiScale = 1.0f;   // editor scale; tooltips are scaled with it, so their text is compensated
     };
 }

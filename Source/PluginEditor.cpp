@@ -542,6 +542,7 @@ void K808Editor::paint (Graphics& g)
 void K808Editor::resized()
 {
     canvas.setTransform (AffineTransform::scale ((float) getWidth() / (float) designWidth));
+    lnf.uiScale = (float) getWidth() / (float) designWidth;
     processor.apvts.state.setProperty ("uiWidth", getWidth(), nullptr);
 }
 
@@ -634,7 +635,9 @@ void K808Editor::showPresetMenu()
     menu.addItem (1003, "Init (all defaults)");
     menu.addItem (1004, "Open presets folder");
 
-    menu.showMenuAsync (PopupMenu::Options().withTargetComponent (&presetButton),
+    // target the screen area (not the component) so the menu is not shrunk with the editor
+    menu.setLookAndFeel (&lnf);
+    menu.showMenuAsync (PopupMenu::Options().withTargetScreenArea (presetButton.getScreenBounds()).withMinimumWidth (300),
                         [this] (int result)
                         {
                             auto& presets = processor.presets;

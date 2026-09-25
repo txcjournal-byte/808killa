@@ -178,7 +178,7 @@ UI::Knob& AdvancedPage::knob (int tab, int col, int row, const String& id, const
     auto* k = new UI::Knob (processor.apvts, id, label, tip, bipolar);
     owned.add (k);
     addChildComponent (*k);
-    k->setKnobArea ({ 90 + col * 210, 220 + row * 300, 140, 140 }, 32.0f);
+    k->setKnobArea ({ 90 + col * 210, 220 + row * 300, 140, 140 }, 38.0f);
     tabs[(size_t) tab].controls.push_back (k);
     return *k;
 }
@@ -212,7 +212,7 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
         b->onClick = [this, i] { showTab (i); };
         const auto slot = (int) (std::find (std::begin (displayOrder), std::end (displayOrder), i) - std::begin (displayOrder));
         b->setBounds (12 + slot * 126, 14, 123, 52);
-        b->textHeight = 21.0f;
+        b->textHeight = 28.0f;
         addAndMakeVisible (b);
         ++visibleTabs;
 
@@ -225,7 +225,7 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     }
 
     resetButton.setBounds (1004, 84, 140, 52);
-    resetButton.textHeight = 23.0f;
+    resetButton.textHeight = 29.0f;
     resetButton.setTooltip ("Reset every control on this tab to its default.");
     resetButton.onClick = [this]
     {
@@ -350,13 +350,13 @@ void AdvancedPage::paint (Graphics& g)
     drawLabel (g, tab.name, { 40.0f, 82.0f, 400.0f, 56.0f }, 52.0f, Palette::ink, Justification::centredLeft);
 
     if (tab.name == "CHOP")
-        drawLabel (g, "PATTERN", { 40.0f, 150.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
+        drawLabel (g, "PATTERN", { 40.0f, 150.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
 
     if (tab.name == "WOBBLE")
     {
-        drawLabel (g, "TARGET", { 40.0f, 150.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
-        drawLabel (g, "RATE",   { 40.0f, 222.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
-        drawLabel (g, "SHAPE",  { 40.0f, 294.0f, 170.0f, 58.0f }, 30.0f, Palette::ink, Justification::centredLeft);
+        drawLabel (g, "TARGET", { 40.0f, 150.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
+        drawLabel (g, "RATE",   { 40.0f, 222.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
+        drawLabel (g, "SHAPE",  { 40.0f, 294.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
     }
 
     if (tab.note.isNotEmpty())
@@ -453,9 +453,9 @@ K808Editor::K808Editor (K808Processor& p)
     canvas.addAndMakeVisible (abButton);
     saveButton.setBounds (bar.getRight() - 170, bar.getY(), 170, bar.getHeight());
 
-    presetButton.textHeight = 31.0f;
+    presetButton.textHeight = 36.0f;
     for (auto* b : { &simpleTab, &advancedTab, &prevButton, &nextButton, &saveButton, &abButton })
-        b->textHeight = 25.0f;
+        b->textHeight = 31.0f;
     prevButton.setTooltip ("Previous preset");
     nextButton.setTooltip ("Next preset");
     presetButton.setTooltip ("Pick a style or preset");

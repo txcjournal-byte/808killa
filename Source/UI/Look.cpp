@@ -41,7 +41,7 @@ void drawLabel (Graphics& g, const String& text, Rectangle<float> area, float he
     static SharedResourcePointer<Fonts> fonts;
     g.setColour (colour);
     g.setFont (fonts->bold (height));
-    g.drawText (text, area, just, false);
+    g.drawFittedText (text, area.toNearestInt(), just, 1, 0.75f);
 }
 
 //==============================================================================
@@ -182,18 +182,16 @@ void LookAndFeel::drawTooltip (Graphics& g, const String& text, int width, int h
     g.setColour (Palette::red.withAlpha (0.7f));
     g.drawRect (0, 0, width, height, 1);
     g.setColour (Palette::text);
-    g.setFont (fonts->sans (19.0f / jmax (0.3f, uiScale)));
+    g.setFont (fonts->sans (19.0f));
     g.drawFittedText (text, Rectangle<int> (width, height).reduced (8, 4), Justification::centredLeft, 4);
 }
 
 Rectangle<int> LookAndFeel::getTooltipBounds (const String& text, Point<int> screenPos, Rectangle<int> parentArea)
 {
-    const auto s = 1.0f / jmax (0.3f, uiScale);
-    const auto f = fonts->sans (19.0f * s);
-    const auto maxW = 400.0f * s;
-    const auto textW = jmin ((int) maxW, (int) GlyphArrangement::getStringWidth (f, text) + (int) (24 * s));
-    const auto lines = 1 + (int) (GlyphArrangement::getStringWidth (f, text) / (maxW - 24.0f * s));
-    const auto w = textW, h = (int) ((14.0f + (float) lines * 23.0f) * s);
+    const auto f = fonts->sans (19.0f);
+    const auto textW = jmin (400, (int) GlyphArrangement::getStringWidth (f, text) + 24);
+    const auto lines = 1 + (int) (GlyphArrangement::getStringWidth (f, text) / 376.0f);
+    const auto w = textW, h = 14 + lines * 23;
     return Rectangle<int> (screenPos.x > parentArea.getCentreX() ? screenPos.x - (w + 12) : screenPos.x + 24,
                            screenPos.y > parentArea.getCentreY() ? screenPos.y - (h + 6) : screenPos.y + 6, w, h)
         .constrainedWithin (parentArea);

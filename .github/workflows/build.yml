@@ -27,18 +27,24 @@ jobs:
           .\pluginval\pluginval.exe --strictness-level 10 --verbose --output-dir pluginval-logs --validate "build\K808_artefacts\Release\VST3\808 KILLA.vst3"
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
-      - name: Crash stack (only when pluginval failed)
+      - name: Crash dump analysis (only when pluginval failed)
         if: failure()
         shell: pwsh
         run: |
+          Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile procdump.zip
+          Expand-Archive procdump.zip -DestinationPath procdump
+          New-Item -ItemType Directory -Force dumps | Out-Null
+          for ($run = 1; $run -le 3; $run++) {
+            Write-Host "=== attempt $run ==="
+            .\procdump\procdump64.exe -accepteula -ma -e 1 -f C0000005 -f C0000409 -f C00000FD -f C0000374 -x dumps .\pluginval\pluginval.exe --strictness-level 10 --validate-in-process --validate "build\K808_artefacts\Release\VST3\808 KILLA.vst3" | Select-String -Pattern "Starting tests|Exception|Dump|FAILED|SUCCESS"
+            if (Get-ChildItem dumps\*.dmp -ErrorAction SilentlyContinue) { break }
+          }
           $cdb = "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe"
-          if (-not (Test-Path $cdb)) { Write-Host "cdb not found"; Get-ChildItem "C:\Program Files (x86)\Windows Kits\10" -ErrorAction SilentlyContinue; exit 0 }
           $sym = (Resolve-Path "build\K808_artefacts\Release\VST3\808 KILLA.vst3\Contents\x86_64-win").Path
-          $cmd = "sxe -c `".echo ===CRASH===;.ecxr;kb 60;~*kb 25;q`" av; sxe -c `".echo ===CRASH===;.ecxr;kb 60;q`" sov; sxe -c `".echo ===CRASH===;kb 60;q`" c0000409; sxe -c `".echo ===CRASH===;kb 60;q`" c0000374; sxe -c `".echo ===CPP-EXCEPTION===;kb 40;g`" eh; g"
-          & $cdb -G -o -y "$sym;srv*" -c $cmd .\pluginval\pluginval.exe --strictness-level 10 --validate-in-process --validate "build\K808_artefacts\Release\VST3\808 KILLA.vst3" *> cdb.log
-          $lines = Get-Content cdb.log
-          $i = ($lines | Select-String -Pattern "===CRASH===|===CPP-EXCEPTION===" | Select-Object -First 1).LineNumber
-          if ($i) { $lines[[Math]::Max(0,$i-40)..[Math]::Min($lines.Count-1,$i+250)] } else { $lines | Select-Object -Last 120 }
+          foreach ($d in Get-ChildItem dumps\*.dmp) {
+            Write-Host "=== DUMP $($d.Name) ==="
+            & $cdb -z $d.FullName -y "$sym;srv*" -c ".ecxr;kb 60;.echo ===ALL THREADS===;~*kb 20;q" | Select-Object -Last 250
+          }
           exit 0
 
       - name: Upload pluginval logs

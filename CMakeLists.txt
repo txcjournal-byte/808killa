@@ -22,7 +22,7 @@ if(JUCE_SOURCE_DIR)
 else()
     include(FetchContent)
     FetchContent_Declare(JUCE
-        URL https://github.com/juce-framework/JUCE/archive/refs/tags/8.0.4.zip
+        URL https://github.com/juce-framework/JUCE/archive/refs/tags/8.0.15.zip
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
     FetchContent_MakeAvailable(JUCE)
 endif()

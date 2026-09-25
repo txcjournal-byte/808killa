@@ -35,6 +35,7 @@ jobs:
           path: pluginval-logs/
 
       - name: Installer (Inno Setup)
+        if: ${{ !cancelled() }}
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
@@ -43,12 +44,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Upload VST3
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: 808-KILLA-VST3-Windows
           path: build/K808_artefacts/Release/VST3/
 
       - name: Upload installer
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: 808-KILLA-Installer-Windows
@@ -83,11 +86,13 @@ jobs:
           ./pluginval.app/Contents/MacOS/pluginval --strictness-level 10 --validate-in-process --validate "build/K808_artefacts/Release/VST3/808 KILLA.vst3"
 
       - name: Installer (pkg, unsigned)
+        if: ${{ !cancelled() }}
         run: |
           VERSION=$(sed -n 's/project(K808_KILLA VERSION \([0-9.]*\))/\1/p' CMakeLists.txt)
           installer/mac/build_pkg.sh "$VERSION"
 
       - name: Upload plugins
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: 808-KILLA-macOS
@@ -96,6 +101,7 @@ jobs:
             build/K808_artefacts/Release/AU/
 
       - name: Upload installer
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: 808-KILLA-Installer-macOS

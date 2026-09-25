@@ -162,7 +162,7 @@ void LookAndFeel::drawPopupMenuBackground (Graphics& g, int width, int height)
 
 Font LookAndFeel::getPopupMenuFont()
 {
-    return fonts->sans (17.0f);
+    return fonts->sans (24.0f);   // popup menus are separate windows: not scaled with the editor
 }
 
 void LookAndFeel::drawTooltip (Graphics& g, const String& text, int width, int height)
@@ -171,16 +171,16 @@ void LookAndFeel::drawTooltip (Graphics& g, const String& text, int width, int h
     g.setColour (Palette::red.withAlpha (0.7f));
     g.drawRect (0, 0, width, height, 1);
     g.setColour (Palette::text);
-    g.setFont (fonts->sans (15.0f));
+    g.setFont (fonts->sans (19.0f));
     g.drawFittedText (text, Rectangle<int> (width, height).reduced (8, 4), Justification::centredLeft, 4);
 }
 
 Rectangle<int> LookAndFeel::getTooltipBounds (const String& text, Point<int> screenPos, Rectangle<int> parentArea)
 {
-    const auto f = fonts->sans (15.0f);
-    const auto textW = jmin (320, (int) GlyphArrangement::getStringWidth (f, text) + 20);
-    const auto lines = 1 + (int) (GlyphArrangement::getStringWidth (f, text) / 300.0f);
-    const auto w = textW, h = 12 + lines * 18;
+    const auto f = fonts->sans (19.0f);
+    const auto textW = jmin (400, (int) GlyphArrangement::getStringWidth (f, text) + 24);
+    const auto lines = 1 + (int) (GlyphArrangement::getStringWidth (f, text) / 376.0f);
+    const auto w = textW, h = 14 + lines * 23;
     return Rectangle<int> (screenPos.x > parentArea.getCentreX() ? screenPos.x - (w + 12) : screenPos.x + 24,
                            screenPos.y > parentArea.getCentreY() ? screenPos.y - (h + 6) : screenPos.y + 6, w, h)
         .constrainedWithin (parentArea);

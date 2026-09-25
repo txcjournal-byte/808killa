@@ -35,7 +35,10 @@ jobs:
           if (-not (Test-Path $cdb)) { Write-Host "cdb not found"; Get-ChildItem "C:\Program Files (x86)\Windows Kits\10" -ErrorAction SilentlyContinue; exit 0 }
           $sym = (Resolve-Path "build\K808_artefacts\Release\VST3\808 KILLA.vst3\Contents\x86_64-win").Path
           $cmd = "sxe -c `".echo ===CRASH===;.ecxr;kb 60;~*kb 25;q`" av; sxe -c `".echo ===CRASH===;.ecxr;kb 60;q`" sov; sxe -c `".echo ===CRASH===;kb 60;q`" c0000409; sxe -c `".echo ===CRASH===;kb 60;q`" c0000374; sxe -c `".echo ===CPP-EXCEPTION===;kb 40;g`" eh; g"
-          & $cdb -G -o -y "$sym;srv*" -c $cmd .\pluginval\pluginval.exe --strictness-level 10 --validate-in-process --validate "build\K808_artefacts\Release\VST3\808 KILLA.vst3" 2>&1 | Select-String -Pattern "===|K808|808 KILLA|juce|pluginval!|Exception|exit|ExitProcess|k808" -Context 0,2 | Select-Object -First 400
+          & $cdb -G -o -y "$sym;srv*" -c $cmd .\pluginval\pluginval.exe --strictness-level 10 --validate-in-process --validate "build\K808_artefacts\Release\VST3\808 KILLA.vst3" *> cdb.log
+          $lines = Get-Content cdb.log
+          $i = ($lines | Select-String -Pattern "===CRASH===|===CPP-EXCEPTION===" | Select-Object -First 1).LineNumber
+          if ($i) { $lines[[Math]::Max(0,$i-40)..[Math]::Min($lines.Count-1,$i+250)] } else { $lines | Select-Object -Last 120 }
           exit 0
 
       - name: Upload pluginval logs

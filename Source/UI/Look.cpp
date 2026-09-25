@@ -173,7 +173,7 @@ void LookAndFeel::drawPopupMenuBackground (Graphics& g, int width, int height)
 
 Font LookAndFeel::getPopupMenuFont()
 {
-    return fonts->sans (24.0f);   // popup menus are separate windows: not scaled with the editor
+    return fonts->sans (18.0f);   // popup menus are separate windows: not scaled with the editor
 }
 
 void LookAndFeel::drawTooltip (Graphics& g, const String& text, int width, int height)

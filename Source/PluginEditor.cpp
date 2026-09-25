@@ -637,7 +637,7 @@ void K808Editor::showPresetMenu()
 
     // target the screen area (not the component) so the menu is not shrunk with the editor
     menu.setLookAndFeel (&lnf);
-    menu.showMenuAsync (PopupMenu::Options().withTargetScreenArea (presetButton.getScreenBounds()).withMinimumWidth (300),
+    menu.showMenuAsync (PopupMenu::Options().withTargetScreenArea (presetButton.getScreenBounds()).withMinimumWidth (220),
                         [this] (int result)
                         {
                             auto& presets = processor.presets;

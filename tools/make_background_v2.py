@@ -39,7 +39,7 @@ tex=(acc/np.maximum(wsum,1e-6))[:H,:W]
 n=cv2.resize(rng.standard_normal((6,9)).astype(np.float32),(W,H),interpolation=cv2.INTER_CUBIC)
 tex*= (1+0.05*n)[...,None]
 out=clean.copy(); out[Y0:Y1,X0:X1]=np.clip(tex,0,255)
-Image.fromarray(out.astype(np.uint8)).save(os.path.join(ROOT,'Resources/background.png'))
+Image.fromarray(out.astype(np.uint8)).convert('RGB').save(os.path.join(ROOT,'Resources/background.jpg'), quality=92, optimize=True)
 # knob face texture from the DISTORT knob
 cx,cy,r=1017,262,66
 face=clean[cy-r:cy+r,cx-r:cx+r].astype(np.uint8)

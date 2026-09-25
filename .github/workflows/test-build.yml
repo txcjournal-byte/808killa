@@ -1,0 +1,46 @@
+name: Test build (Windows VST3, fast)
+
+# Quick build for testing in the DAW: Windows VST3 + installer only.
+# Compiler cache (sccache) makes rebuilds take a few minutes.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Configure
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DK808_LTO=OFF -DK808_BUILD_TESTS=OFF -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: Build VST3
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+        run: cmake --build build --target K808_VST3
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(K808_KILLA VERSION ([0-9.]+)\)').Matches[0].Groups[1].Value
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$version-test" installer\win\808killa.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: 808-KILLA-TEST-Installer-Windows
+          path: build/installer/*.exe
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: 808-KILLA-TEST-VST3-Windows
+          path: build/K808_artefacts/Release/VST3/

@@ -119,13 +119,20 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
         { "SETTINGS", {},       {}, {} },
     };
 
+    int visibleTabs = 0;
     for (int i = 0; i < (int) tabs.size(); ++i)
     {
         auto* b = tabButtons.add (new UI::FlatButton (tabs[(size_t) i].name));
         b->textHeight = 19.0f;
-        b->setBounds (12 + i * 110, 14, 108, 46);
         b->onClick = [this, i] { showTab (i); };
-        addAndMakeVisible (b);
+
+        // PITCH and WOBBLE stay hidden until their DSP exists
+        if (tabs[(size_t) i].name != "PITCH" && tabs[(size_t) i].name != "WOBBLE")
+        {
+            b->setBounds (12 + visibleTabs * 147, 14, 144, 46);
+            addAndMakeVisible (b);
+            ++visibleTabs;
+        }
 
         if (tabs[(size_t) i].sectionParam.isNotEmpty())
         {
@@ -240,8 +247,8 @@ void AdvancedPage::paint (Graphics& g)
         drawPanel (g, box, true);
         g.setColour (Palette::text);
         g.setFont (fonts->sans (21.0f));
-        const auto text = String ("808 KILLA  v") + JucePlugin_VersionString + "\n"
-                          + "User presets: " + PresetManager::userFolder().getFullPathName() + "\n"
+        const auto text = String (JucePlugin_Name) + "  v" + JucePlugin_VersionString + "\n"
+                          + "by " + JucePlugin_Manufacturer + "\n"
                           + "Double-click a knob = default value.  Ctrl / Cmd + drag = fine adjustment.";
         g.drawFittedText (text, box.reduced (20.0f, 14.0f).toNearestInt(), Justification::topLeft, 5);
     }
@@ -250,13 +257,12 @@ void AdvancedPage::paint (Graphics& g)
 //==============================================================================
 Canvas::Canvas()
 {
-    background = ImageCache::getFromMemory (BinaryData::background_png, BinaryData::background_pngSize);
+    background = ImageCache::getFromMemory (BinaryData::background_jpg, BinaryData::background_jpgSize);
     setOpaque (true);
 }
 
 void Canvas::paint (Graphics& g)
 {
-    g.setImageResamplingQuality (Graphics::highResamplingQuality);
     g.drawImageAt (background, 0, 0);
 
     drawPanel (g, topBarArea.toFloat());
@@ -362,9 +368,23 @@ K808Editor::K808Editor (K808Processor& p)
     refreshPresetLabel();
 
     setResizable (true, true);
-    setResizeLimits (designWidth / 2, designHeight / 2, designWidth * 3 / 2, designHeight * 3 / 2);
+    setResizeLimits (designWidth * 2 / 5, designHeight * 2 / 5, designWidth * 5 / 4, designHeight * 5 / 4);
     getConstrainer()->setFixedAspectRatio ((double) designWidth / (double) designHeight);
-    setSize (designWidth * 3 / 4, designHeight * 3 / 4);
+    // first open: half size; afterwards the size the user dragged it to
+    const auto savedWidth = (int) processor.apvts.state.getProperty ("uiWidth", designWidth / 2);
+    const auto width = jlimit (designWidth * 2 / 5, designWidth * 5 / 4, savedWidth);
+    setSize (width, width * designHeight / designWidth);
+
+    // never take keyboard focus: the space bar etc. must keep reaching the DAW (play / stop)
+    setWantsKeyboardFocus (false);
+    std::function<void (Component&)> noFocus = [&noFocus] (Component& c)
+    {
+        c.setWantsKeyboardFocus (false);
+        c.setMouseClickGrabsKeyboardFocus (false);
+        for (auto* child : c.getChildren())
+            noFocus (*child);
+    };
+    noFocus (*this);
 
     startTimerHz (30);
 }
@@ -384,6 +404,7 @@ void K808Editor::paint (Graphics& g)
 void K808Editor::resized()
 {
     canvas.setTransform (AffineTransform::scale ((float) getWidth() / (float) designWidth));
+    processor.apvts.state.setProperty ("uiWidth", getWidth(), nullptr);
 }
 
 void K808Editor::showPage (bool adv)

@@ -1,7 +1,10 @@
-name: Build 808 KILLA
+name: Release build (Windows + macOS, full validation)
 
+# Full build with tests, pluginval, auval and installers. Run manually
+# (Actions > Release build > Run workflow) or by pushing a version tag.
 on:
   push:
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:

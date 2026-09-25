@@ -14,6 +14,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(K808_BUILD_TESTS "Build the DSP unit tests" ON)
+option(K808_LTO "Link-time optimisation (release builds; off = faster test builds)" ON)
 
 # JUCE: use a local checkout if given (-DJUCE_SOURCE_DIR=...), otherwise download it
 set(JUCE_SOURCE_DIR "" CACHE PATH "Optional local JUCE checkout")
@@ -46,7 +47,7 @@ juce_add_plugin(K808
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
 juce_add_binary_data(K808Assets SOURCES
-    Resources/background.png
+    Resources/background.jpg
     Resources/knob_face.png
     Resources/ShareTech-Regular.ttf
     Resources/ShareTechMono-Regular.ttf
@@ -79,12 +80,15 @@ target_link_libraries(K808
         juce::juce_dsp
     PUBLIC
         juce::juce_recommended_config_flags
-        juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+if(K808_LTO)
+    target_link_libraries(K808 PUBLIC juce::juce_recommended_lto_flags)
+endif()
 
 # Windows: keep symbols for Release so crash reports show function names
 if(MSVC)
-    target_compile_options(K808 PRIVATE /Zi)
+    target_compile_options(K808 PRIVATE /Z7)
     target_link_options(K808_VST3 PRIVATE /DEBUG /OPT:REF /OPT:ICF)
 endif()
 

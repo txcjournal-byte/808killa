@@ -46,8 +46,7 @@ Vlastní presety: tlačítko **SAVE** → uloží se jako `.808k` do `Documents\
 *Sidechain to this track*. Pak v 808 KILLA zvol sidechain vstup. Bez sidechainu je DUCK ztlumený.
 
 ### Stav projektu (odloženo, verze 0.4)
-Plugin je použitelný a otestovaný ve FL Studiu. Až se k němu vrátíme:
-- doladit zvuk jednotlivých presetů/stylů (podle poznámek z poslechu)
+Plugin je hotový a otestovaný ve FL Studiu, zvuk presetů je finální. Zbývá jen příprava na prodej:
 - uložit verzi tagem `v0.4.0` (spustí plný build Windows + Mac s instalátory)
 - příprava na prodej: repo přepnout na soukromé, licence JUCE, instalátor s EULA, případně licenční klíč, manuál (PDF), texty na e-shop
 - podepsání instalátorů (Windows code-signing, Mac notarizace)

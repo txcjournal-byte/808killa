@@ -31,7 +31,7 @@ ladička (nota + tónina), MASTER metr (peak + LUFS short-term), **PHONE CHECK**
 | SHAPE | Punch, Click, Length (zkrácení i prodloužení dozvuku) |
 | TONE | Sub, Harmonics, Tilt, Filter (LP 12/24 dB, cutoff, resonance) |
 | DIRT | Soft / Hard Clip / Tape / Tube / Foldback / Bitcrush, Drive, Mix, Crush, Post filter, Clean Low, Auto gain, Oversampling 2×/4×/8× |
-| DUCK | Kick duck přes sidechain: Amount, Release, Shape |
+| DUCK | Duck přes sidechain (volitelné): Amount, Release, Shape |
 | OUTPUT | Input, Clipper, Ceiling, Mono below, Width, Output, Dry/Wet |
 | SETTINGS | verze, složka presetů |
 
@@ -45,11 +45,12 @@ Vlastní presety: tlačítko **SAVE** → uloží se jako `.808k` do `Documents\
 **Sidechain ve FL Studiu (DUCK):** na mixer tracku s kickem klikni pravým na šipku k tracku s 808 →
 *Sidechain to this track*. Pak v 808 KILLA zvol sidechain vstup. Bez sidechainu je DUCK ztlumený.
 
-### Připravuje se (další fáze podle zadání)
-- Analyzátor tónu (nota + tónina) a **pitch efekty**: BEND, Slide, Pitch Knock, Octave Jump, Key Lock
-- WOBBLE, Stutter, Tape Stop
-- import/export presetů
-- Podepsání instalátorů (Windows code-signing, Mac notarizace)
+### Stav projektu (odloženo, verze 0.4)
+Plugin je použitelný a otestovaný ve FL Studiu. Až se k němu vrátíme:
+- doladit zvuk jednotlivých presetů/stylů (podle poznámek z poslechu)
+- uložit verzi tagem `v0.4.0` (spustí plný build Windows + Mac s instalátory)
+- příprava na prodej: repo přepnout na soukromé, licence JUCE, instalátor s EULA, případně licenční klíč, manuál (PDF), texty na e-shop
+- podepsání instalátorů (Windows code-signing, Mac notarizace)
 
 ## Build na vlastním PC
 

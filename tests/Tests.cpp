@@ -37,7 +37,7 @@ namespace
     }
 
     AudioBuffer<float> run (K808Processor& p, const AudioBuffer<float>& input, double sampleRate, int blockSize,
-                            const AudioBuffer<float>* sidechain = nullptr)
+                            const AudioBuffer<float>* sidechain = nullptr, int resetAtSample = -1)
     {
         const auto chans = input.getNumChannels();
         const auto total = chans + (sidechain != nullptr ? 2 : 0);
@@ -57,6 +57,8 @@ namespace
             if (sidechain != nullptr)
                 for (int c = 0; c < 2; ++c)
                     view.copyFrom (chans + c, 0, *sidechain, jmin (c, sidechain->getNumChannels() - 1), start, n);
+            if (resetAtSample >= start && resetAtSample < start + blockSize)
+                p.reset();                                   // what a host does when the transport stops
             p.processBlock (view, midi);
             for (int c = 0; c < chans; ++c)
                 out.copyFrom (c, start, view, c, 0, n);
@@ -363,7 +365,7 @@ int main()
     }
 
     // ---------------------------------------------------------------- first hit after stop / play, full processing
-    std::cout << "[10] first hit after a long silence sounds like every other hit (dirt, punch, clipper)" << std::endl;
+    std::cout << "[10] first hit after stop (host reset) sounds like every other hit (dirt, punch, clipper)" << std::endl;
     {
         const double sr = 48000.0;
         AudioBuffer<float> input (2, (int) (sr * 12.0));
@@ -381,7 +383,7 @@ int main()
             K808Processor p;
             enableSidechain (p, false);
             p.presets.load (index);
-            const auto out = run (p, input, sr, 512);
+            const auto out = run (p, input, sr, 512, nullptr, (int) (sr * 6.0));   // host reset in the silence
             const auto lat = p.getLatencySamples();
             auto rms = [&] (double t) { return out.getRMSLevel (0, (int) (sr * t) + lat, (int) (sr * 0.12)); };
             const auto steady = rms (2.5), first = rms (9.0);

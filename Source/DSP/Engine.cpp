@@ -105,6 +105,9 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
 
     lufsBinLength = jmax (1, (int) (fs * 0.1));
     reset();
+    if (! approximatelyEqual (sampleRate, preparedRate))   // some hosts re-prepare on every stop: keep the levels then
+        forgetLevels();
+    preparedRate = sampleRate;
 }
 
 void Engine::reset()
@@ -153,13 +156,11 @@ void Engine::reset()
         b->reset();
 
     envFast = envSlow = envGate = notePeak = scEnv = 0.0f;
-    levelNote = levelMeasurePeak = 0.0f;
+    levelMeasurePeak = 0.0f;
     levelMeasureLeft = 0;
-    levelGain = 1.0f;
     scopeCount = 0;
     scopeInMax = scopeOutMax = 0.0f;
-    lengthGain = agGain = 1.0f;
-    rmsPre = rmsPost = 0.0f;
+    lengthGain = 1.0f;
     holdoff = 0;
     cSub = cTilt = -999.0f;
     cCutoff = cRes = cPost = cClean = cMono = -1.0f;
@@ -168,6 +169,16 @@ void Engine::reset()
     lufsAcc = 0.0;
     shortTermLufs = -100.0f;
     inPeak = outPeak = 0.0f;
+}
+
+// The learned levels (auto level, dirt auto gain) survive reset(): hosts reset plugins when the
+// transport stops, and forgetting them made the first hit after play too loud.
+void Engine::forgetLevels()
+{
+    levelNote = 0.0f;
+    levelGain = 1.0f;
+    agGain = 1.0f;
+    rmsPre = rmsPost = 0.0f;
 }
 
 //==============================================================================

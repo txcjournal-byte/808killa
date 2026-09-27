@@ -66,6 +66,7 @@ class Engine
 public:
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
+    void forgetLevels();   // also clear the learned auto level / auto gain (new sample rate etc.)
 
     // buffer: main in/out (1 or 2 channels), sidechain may be null
     void process (juce::AudioBuffer<float>& buffer, int numChannels,
@@ -147,6 +148,7 @@ private:
     float rmsPre = 0.0f, rmsPost = 0.0f, agGain = 1.0f;
     float levelNote = 0.0f, levelMeasurePeak = 0.0f, levelGain = 1.0f;   // auto level (0 = no note measured yet)
     int levelMeasureLeft = 0;
+    double preparedRate = 0.0;
     int scopeCount = 0, scopeLength = 240;
     float scopeInMax = 0.0f, scopeOutMax = 0.0f;
 

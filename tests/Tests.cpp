@@ -333,6 +333,35 @@ int main()
         check (perInstance < 10.0, "too much CPU");
     }
 
+    // ---------------------------------------------------------------- auto level after stop / play
+    std::cout << "[9] auto level: first hit after a long silence is not louder" << std::endl;
+    {
+        K808Processor p;
+        enableSidechain (p, false);
+        p.presets.load (1);   // Pure Sub: no dirt, almost linear
+        setParam (p, ParamIDs::clipper, 0.0f);
+        setParam (p, ParamIDs::kill, 0.0f);
+        setParam (p, ParamIDs::punch, 0.0f);     // PUNCH reacts to the silence on purpose; test the level only
+        setParam (p, ParamIDs::autoLevel, 1.0f);
+
+        const double sr = 48000.0;
+        AudioBuffer<float> input (2, (int) (sr * 10.0));
+        for (int i = 0; i < input.getNumSamples(); ++i)
+        {
+            const auto t = i / sr;
+            const auto playing = t < 2.0 || t >= 8.0;              // play, stop for 6 s, play again
+            const auto v = playing ? 0.15f * test808 (t < 2.0 ? t : t - 8.0) : 0.0f;
+            input.setSample (0, i, v);
+            input.setSample (1, i, v);
+        }
+        const auto out = run (p, input, sr, 512);
+        const auto lat = p.getLatencySamples();
+        const auto steady = out.getMagnitude (0, (int) (sr * 1.5) + lat, (int) (sr * 0.5));
+        const auto first = out.getMagnitude (0, (int) (sr * 8.0) + lat, (int) (sr * 0.4));
+        std::cout << "    steady peak " << steady << ", first hit after silence " << first << std::endl;
+        check (first < steady * 1.25f, "first hit after silence is " + String (Decibels::gainToDecibels (first / steady), 1) + " dB louder");
+    }
+
     std::cout << (failures == 0 ? "ALL TESTS PASSED" : String (failures) + " FAILURES") << std::endl;
     return failures == 0 ? 0 : 1;
 }

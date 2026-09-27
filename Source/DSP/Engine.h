@@ -145,7 +145,8 @@ private:
     float scEnv = 0.0f;
     int scSilentSamples = 1 << 30;
     float rmsPre = 0.0f, rmsPost = 0.0f, agGain = 1.0f;
-    float levelEnv = 0.0f, levelGain = 1.0f;
+    float levelNote = 0.0f, levelMeasurePeak = 0.0f, levelGain = 1.0f;   // auto level (0 = no note measured yet)
+    int levelMeasureLeft = 0;
     int scopeCount = 0, scopeLength = 240;
     float scopeInMax = 0.0f, scopeOutMax = 0.0f;
 

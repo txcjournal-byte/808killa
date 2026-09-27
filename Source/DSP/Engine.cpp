@@ -153,7 +153,8 @@ void Engine::reset()
         b->reset();
 
     envFast = envSlow = envGate = notePeak = scEnv = 0.0f;
-    levelEnv = 0.0f;
+    levelNote = levelMeasurePeak = 0.0f;
+    levelMeasureLeft = 0;
     levelGain = 1.0f;
     scopeCount = 0;
     scopeInMax = scopeOutMax = 0.0f;
@@ -328,8 +329,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     const auto crushSteps = std::pow (2.0f, p.crushBits - 1.0f);
     const auto holdFactor = p.dirtMode == bitcrush ? 1 + roundToInt (effDrive * 12.0f) : 1;
     const auto duckExp = 0.5f + 1.5f * (1.0f - p.duckShape);
-    const auto levelA = onePole (0.005, fs), levelR = onePole (3.0, fs);
-    const auto levelCoef = 1.0f - onePole (0.03, fs);
+    const auto levelCoef = 1.0f - onePole (0.002, fs);
     float clipRatio = 1.0f;
 
     const auto scChannels = sidechain != nullptr ? sidechain->getNumChannels() : 0;
@@ -364,18 +364,6 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 detectIn = jmax (detectIn, std::abs (x[c]));
             }
 
-            // ---- auto level: every 808 hits the processing at about -6 dBFS peak,
-            // so presets and KILL sound the same on quiet and loud samples
-            {
-                levelEnv = follow (levelEnv, detectIn, levelA, levelR);
-                auto target = levelGain;
-                if (! p.autoLevel)              target = 1.0f;
-                else if (levelEnv > 0.003f)     target = jlimit (0.25f, 8.0f, 0.5f / levelEnv);
-                levelGain += (target - levelGain) * levelCoef;
-                for (int c = 0; c < numCh; ++c)
-                    x[c] *= levelGain;
-                detectIn *= levelGain;
-            }
 
             // ---- tuner feed (mono input, low-passed and decimated)
             {
@@ -431,6 +419,25 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             {
                 onsetCountdown = lookahead;
                 preHold = (int) (fs * 0.06);
+                levelMeasureLeft = lookahead;
+                levelMeasurePeak = 0.0f;
+            }
+
+            // ---- auto level: every 808 hits the processing at about -6 dBFS peak, so presets and KILL
+            // sound the same on quiet and loud samples. Each note is measured during the lookahead
+            // (before it is heard) and the gain is applied after the lookahead buffer, so it is set
+            // before the note arrives. Silence (transport stopped) keeps the last level.
+            if (levelMeasureLeft > 0)
+            {
+                levelMeasurePeak = jmax (levelMeasurePeak, detectIn);
+                if (--levelMeasureLeft == 0 && levelMeasurePeak > 0.01f)
+                    levelNote = (levelNote <= 0.0f || levelMeasurePeak > levelNote)
+                                    ? levelMeasurePeak                                  // louder: follow at once
+                                    : levelNote * 0.7f + levelMeasurePeak * 0.3f;       // quieter: over a few notes
+            }
+            {
+                const auto target = (p.autoLevel && levelNote > 0.0f) ? jlimit (0.25f, 8.0f, 0.5f / levelNote) : 1.0f;
+                levelGain += (target - levelGain) * levelCoef;
             }
 
             if (onsetCountdown >= 0 && --onsetCountdown < 0)
@@ -504,6 +511,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 auto v = readPitch (st, readDelay);
                 if (xfade > 0.0f)
                     v = v * (1.0f - xfade) + readPitch (st, jlimit (2.0f, maxDelay, oldDelay)) * xfade;
+                v *= levelGain;
 
                 if (octActive)
                 {

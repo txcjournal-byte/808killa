@@ -22,6 +22,9 @@ namespace UI
 
         juce::Slider& getSlider() noexcept { return slider; }
 
+        juce::Colour labelColour = Look::Palette::ink;   // light text when the knob sits on a dark panel
+        void setDark() { labelColour = Look::Palette::text; slider.getProperties().set ("dark", true); }
+
     private:
         struct FineSlider : juce::Slider
         {

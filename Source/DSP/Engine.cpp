@@ -11,16 +11,16 @@ namespace
 KillMapping killMappingFor (int style) noexcept
 {
     static constexpr KillMapping table[] = {
-        { 0.30f, 0.25f, 3.0f, 0.25f },   // Atlanta Clean
-        { 0.25f, 0.15f, 2.0f, 0.30f },   // Memphis Phonk
-        { 0.20f, 0.15f, 3.0f, 0.20f },   // Rage Underground
-        { 0.15f, 0.20f, 2.0f, 0.05f },   // Detroit Clip
-        { 0.35f, 0.20f, 2.0f, 0.30f },   // Drill Chicago
-        { 0.30f, 0.20f, 2.0f, 0.20f },   // Drill NY
-        { 0.35f, 0.15f, 2.0f, 0.30f },   // Drill UK
-        { 0.25f, 0.10f, 3.0f, 0.20f },   // Plugg Soft
-        { 0.35f, 0.10f, 3.0f, 0.25f },   // Chicago Boom
-        { 0.35f, 0.15f, 3.0f, 0.30f },   // Classic Trap Boom
+        { 0.08f, 0.20f, 3.0f, 0.15f },   // Pure
+        { 0.30f, 0.15f, 2.0f, 0.30f },   // Grit
+        { 0.30f, 0.15f, 3.0f, 0.30f },   // Rage
+        { 0.20f, 0.20f, 2.0f, 0.40f },   // Brick
+        { 0.25f, 0.35f, 2.0f, 0.30f },   // Knock
+        { 0.35f, 0.20f, 2.0f, 0.35f },   // Hard
+        { 0.30f, 0.15f, 2.0f, 0.25f },   // Warm
+        { 0.15f, 0.10f, 3.0f, 0.15f },   // Soft
+        { 0.30f, 0.10f, 4.0f, 0.25f },   // Boom
+        { 0.30f, 0.15f, 3.0f, 0.45f },   // Loud
     };
     return table[jlimit (0, (int) std::size (table) - 1, style)];
 }
@@ -34,6 +34,7 @@ double Engine::tailSeconds (const EngineParams& p) noexcept
 void Engine::prepare (double sampleRate, int maxBlockSize)
 {
     fs = sampleRate;
+    scopeLength = jmax (1, (int) (sampleRate * 0.005));
     maxBlock = jmax (1, maxBlockSize);
 
     for (size_t i = 0; i < oversamplers.size(); ++i)
@@ -152,6 +153,10 @@ void Engine::reset()
         b->reset();
 
     envFast = envSlow = envGate = notePeak = scEnv = 0.0f;
+    levelEnv = 0.0f;
+    levelGain = 1.0f;
+    scopeCount = 0;
+    scopeInMax = scopeOutMax = 0.0f;
     lengthGain = agGain = 1.0f;
     rmsPre = rmsPost = 0.0f;
     holdoff = 0;
@@ -323,6 +328,9 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     const auto crushSteps = std::pow (2.0f, p.crushBits - 1.0f);
     const auto holdFactor = p.dirtMode == bitcrush ? 1 + roundToInt (effDrive * 12.0f) : 1;
     const auto duckExp = 0.5f + 1.5f * (1.0f - p.duckShape);
+    const auto levelA = onePole (0.005, fs), levelR = onePole (3.0, fs);
+    const auto levelCoef = 1.0f - onePole (0.03, fs);
+    float clipRatio = 1.0f;
 
     const auto scChannels = sidechain != nullptr ? sidechain->getNumChannels() : 0;
     const auto useDuck = p.duckOn && p.duck > 0.0f && scChannels > 0;
@@ -354,6 +362,19 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 dryBuf.setSample (c, i, data[c][i]);
                 x[c] = ch[(size_t) c].hp20.process (data[c][i] * g);
                 detectIn = jmax (detectIn, std::abs (x[c]));
+            }
+
+            // ---- auto level: every 808 hits the processing at about -6 dBFS peak,
+            // so presets and KILL sound the same on quiet and loud samples
+            {
+                levelEnv = follow (levelEnv, detectIn, levelA, levelR);
+                auto target = levelGain;
+                if (! p.autoLevel)              target = 1.0f;
+                else if (levelEnv > 0.003f)     target = jlimit (0.25f, 8.0f, 0.5f / levelEnv);
+                levelGain += (target - levelGain) * levelCoef;
+                for (int c = 0; c < numCh; ++c)
+                    x[c] *= levelGain;
+                detectIn *= levelGain;
             }
 
             // ---- tuner feed (mono input, low-passed and decimated)
@@ -702,8 +723,11 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 auto v = y[c];
                 if (effClip > 0.001f)
                 {
+                    const auto before = std::abs (v);
                     const auto u = v * (1.0f + effClip) / ceilingGain;
                     v = ceilingGain * ((1.0f - effClip) * std::tanh (u) + effClip * jlimit (-1.0f, 1.0f, u));
+                    if (before > 1.0e-3f && std::abs (v) > 1.0e-6f)
+                        clipRatio = jmax (clipRatio, before / std::abs (v));
                 }
 
                 const auto dry = ch[(size_t) c].dryDelay.process (dryBuf.getSample (c, i), latency);
@@ -711,6 +735,18 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 v = dry + (v - dry) * m;
                 v = v + (dry - v) * b;
                 y[c] = std::isfinite (v) ? v : 0.0f;
+                scopeInMax = jmax (scopeInMax, std::abs (dry));
+                scopeOutMax = jmax (scopeOutMax, std::abs (y[c]));
+            }
+
+            if (++scopeCount >= scopeLength)
+            {
+                const auto w = scopeWrite.load (std::memory_order_relaxed);
+                scopeIn[(size_t) w].store (scopeInMax, std::memory_order_relaxed);
+                scopeOut[(size_t) w].store (scopeOutMax, std::memory_order_relaxed);
+                scopeWrite.store ((w + 1) % scopeSize, std::memory_order_release);
+                scopeCount = 0;
+                scopeInMax = scopeOutMax = 0.0f;
             }
 
             // loudness (before the phone check, which is monitoring only)
@@ -753,4 +789,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     for (int c = 0; c < numCh; ++c)
         pk = jmax (pk, buffer.getMagnitude (c, 0, total));
     if (pk > outPeak.load()) outPeak = pk;
+
+    const auto reduction = Decibels::gainToDecibels (clipRatio);
+    if (reduction > clipDb.load()) clipDb = reduction;
 }

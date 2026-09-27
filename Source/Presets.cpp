@@ -25,44 +25,121 @@ namespace
     const std::vector<Factory>& factoryPresets()
     {
         static const std::vector<Factory> list = {
-            // ---------------- STYLES
-            { "Atlanta Clean", "Styles", 0, { { length, 0.2f }, { punch, 0.75f }, { punchClick, 0.2f }, { dirtMode, 0 }, { dirt, 0.15f },
-                                               { cleanLow, 1 }, { clipper, 0.25f }, { sub, 2.0f }, { knock, 5.0f }, { knockTime, 25.0f } } },
-            { "Memphis Phonk", "Styles", 1, { { length, -0.2f }, { punch, 0.45f }, { dirtMode, 2 }, { dirt, 0.75f }, { crushBits, 12 },
-                                               { filterOn, 1 }, { cutoff, 4000.0f }, { clipper, 0.5f }, { sub, 0.0f }, { wobble, 0.15f }, { wobbleTarget, 0 }, { wobbleRate, 1 } } },
-            { "Rage Underground", "Styles", 2, { { punch, 0.5f }, { dirtMode, 4 }, { dirt, 0.55f }, { dirtMix, 0.8f }, { octUp, 0.35f },
-                                                  { harmonics, 0.3f }, { clipper, 0.8f }, { sub, 3.0f } } },
-            { "Detroit Clip", "Styles", 3, { { length, -0.3f }, { punch, 0.85f }, { punchClick, 0.45f }, { dirtMode, 1 }, { dirt, 0.9f },
-                                              { harmonics, 0.45f }, { knock, 3.0f }, { knockTime, 20.0f }, { clipper, 0.7f }, { sub, 1.0f } } },
-            { "Drill Chicago", "Styles", 4, { { length, -0.4f }, { punch, 0.75f }, { punchClick, 0.3f }, { dirtMode, 0 }, { dirt, 0.5f },
-                                               { filterOn, 1 }, { cutoff, 8000.0f }, { clipper, 0.5f }, { sub, 2.0f }, { knock, 6.0f }, { knockTime, 30.0f } } },
-            { "Drill NY", "Styles", 5, { { length, -0.25f }, { punch, 0.75f }, { dirtMode, 1 }, { dirt, 0.6f }, { clipper, 0.75f }, { sub, 2.0f } } },
-            { "Drill UK", "Styles", 6, { { punch, 0.45f }, { dirtMode, 2 }, { dirt, 0.4f }, { clipper, 0.5f }, { sub, 2.0f } } },
-            { "Plugg Soft", "Styles", 7, { { punch, 0.15f }, { dirtMode, 0 }, { dirt, 0.05f }, { filterOn, 1 }, { cutoff, 3000.0f },
-                                            { clipper, 0.0f }, { sub, 3.0f } } },
-            { "Chicago Boom", "Styles", 8, { { length, 0.3f }, { punch, 0.15f }, { dirtMode, 2 }, { dirt, 0.35f }, { crushBits, 14 },
-                                              { filterOn, 1 }, { cutoff, 7000.0f }, { clipper, 0.25f }, { sub, 3.0f } } },
-            { "Classic Trap Boom", "Styles", 9, { { length, 0.2f }, { punch, 0.45f }, { dirtMode, 0 }, { dirt, 0.5f }, { filterOn, 1 },
-                                                   { cutoff, 8000.0f }, { clipper, 0.25f }, { sub, 3.0f } } },
-
-            // ---------------- TECHNICAL
-            { "Clean Sub", "Clean", 0, { { dirtOn, 0 }, { sub, 6.0f }, { harmonics, 0.4f }, { punch, 0.2f }, { clipper, 0.1f } } },
-            { "Knock Punch", "Clean", 0, { { punch, 0.9f }, { punchClick, 0.6f }, { dirtMode, 0 }, { dirt, 0.15f }, { clipper, 0.3f }, { knock, 7.0f }, { knockTime, 35.0f } } },
-            { "Plugg Bounce", "Clean", 7, { { length, -0.3f }, { punch, 0.3f }, { dirtMode, 3 }, { dirt, 0.15f }, { clipper, 0.1f }, { knock, 12.0f }, { knockTime, 25.0f } } },
-            { "Phone Punch", "Clean", 9, { { harmonics, 0.85f }, { dirtMode, 0 }, { dirt, 0.3f }, { sub, 1.0f }, { clipper, 0.3f } } },
-            { "Dirty Knock", "Dirty", 3, { { dirtMode, 1 }, { dirt, 0.7f }, { cleanLow, 1 }, { punch, 0.75f }, { punchClick, 0.3f }, { clipper, 0.6f } } },
-            { "Lo-Fi Muffle", "Dirty", 1, { { filterOn, 1 }, { cutoff, 1500.0f }, { dirtMode, 2 }, { dirt, 0.5f }, { crushBits, 10 }, { clipper, 0.3f }, { wobble, 0.1f }, { wobbleTarget, 0 }, { wobbleRate, 1 } } },
-            { "Slime Bend", "Pitch", 2, { { dive, -12.0f }, { diveDelay, 220.0f }, { diveTime, 90.0f }, { dirtMode, 1 }, { dirt, 0.8f },
-                                           { octDown, 0.25f }, { clipper, 0.7f } } },
-            { "Dive Bomb", "Pitch", 9, { { dive, -24.0f }, { diveDelay, 80.0f }, { diveTime, 700.0f }, { dirtMode, 0 }, { dirt, 0.45f }, { clipper, 0.4f } } },
-            { "Sub Octave", "Pitch", 0, { { octDown, 0.6f }, { dirtMode, 0 }, { dirt, 0.25f }, { clipper, 0.3f } } },
-            { "Octave Grit", "Pitch", 2, { { octUp, 0.5f }, { dirtMode, 2 }, { dirt, 0.6f }, { clipper, 0.6f } } },
-            { "Wobble Wave", "FX", 9, { { wobble, 0.6f }, { wobbleTarget, 3 }, { wobbleRate, 6 }, { wobbleFade, 100.0f }, { dirtMode, 0 }, { dirt, 0.4f } } },
-            { "Triplet Wub", "FX", 1, { { wobble, 0.8f }, { wobbleTarget, 2 }, { wobbleRate, 4 }, { wobbleShape, 1 }, { dirtMode, 2 }, { dirt, 0.6f } } },
-            { "Tape Drop", "FX", 8, { { dive, -24.0f }, { diveDelay, 0.0f }, { diveTime, 1200.0f }, { dirtMode, 2 }, { dirt, 0.35f } } },
-            { "Motor City Chop", "FX", 3, { { length, -0.5f }, { dirtMode, 1 }, { dirt, 0.5f }, { punch, 0.6f }, { clipper, 0.6f } } },
+            // ---------------- SANCTUS
+            { "Holy Water", "SANCTUS", 0, { { sub, 3.0f }, { harmonics, 0.2f }, { dirtMode, 0.0f }, { dirt, 0.1f }, { clipper, 0.15f }, { punch, 0.3f } } },
+            { "Pure Sub", "SANCTUS", 0, { { dirtOn, 0.0f }, { sub, 5.0f }, { harmonics, 0.1f }, { clipper, 0.1f }, { punch, 0.25f } } },
+            { "Angel Dust", "SANCTUS", 0, { { harmonics, 0.45f }, { dirtMode, 0.0f }, { dirt, 0.15f }, { tilt, 1.5f }, { clipper, 0.2f } } },
+            { "Clean Soul", "SANCTUS", 0, { { punch, 0.5f }, { punchClick, 0.1f }, { dirtMode, 0.0f }, { dirt, 0.1f }, { clipper, 0.2f }, { sub, 2.0f } } },
+            { "Sacred Boom", "SANCTUS", 0, { { length, 0.4f }, { sub, 4.0f }, { dirtMode, 0.0f }, { dirt, 0.1f }, { clipper, 0.2f } } },
+            { "Confession", "SANCTUS", 0, { { filterOn, 1.0f }, { cutoff, 6000.0f }, { sub, 3.0f }, { dirtMode, 0.0f }, { dirt, 0.1f }, { clipper, 0.15f } } },
+            { "Halo", "SANCTUS", 0, { { harmonics, 0.3f }, { width, 0.3f }, { dirtMode, 0.0f }, { dirt, 0.1f }, { sub, 2.0f }, { clipper, 0.15f } } },
+            { "Amen", "SANCTUS", 0, { { knock, 3.0f }, { knockTime, 25.0f }, { punch, 0.45f }, { dirtMode, 0.0f }, { dirt, 0.12f }, { sub, 2.0f }, { clipper, 0.2f } } },
+            // ---------------- VELVET COFFIN
+            { "Velvet Coffin", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.35f }, { clipper, 0.35f }, { sub, 2.0f } } },
+            { "Silk Shroud", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.25f }, { clipper, 0.3f }, { tilt, -1.0f }, { sub, 3.0f } } },
+            { "Soft Burial", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.4f }, { clipper, 0.4f }, { length, 0.2f } } },
+            { "Pillow Talk", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.3f }, { filterOn, 1.0f }, { cutoff, 5000.0f }, { clipper, 0.3f }, { sub, 2.0f } } },
+            { "Lullaby", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.2f }, { sub, 4.0f }, { clipper, 0.25f }, { length, 0.3f } } },
+            { "Casket Cream", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.45f }, { dirtMix, 0.8f }, { clipper, 0.45f } } },
+            { "Satin Sub", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.3f }, { harmonics, 0.25f }, { sub, 3.0f }, { clipper, 0.35f } } },
+            { "Slow Rot", "VELVET COFFIN", 7, { { dirtMode, 0.0f }, { dirt, 0.35f }, { length, 0.5f }, { clipper, 0.3f }, { tilt, -2.0f } } },
+            // ---------------- BRICKFACE
+            { "Brickface", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.6f }, { clipper, 0.8f }, { sub, 1.0f } } },
+            { "Wall Punch", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.5f }, { punch, 0.7f }, { clipper, 0.85f } } },
+            { "Concrete", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.7f }, { harmonics, 0.3f }, { clipper, 0.9f } } },
+            { "Flat Top", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.8f }, { clipper, 1.0f } } },
+            { "Cinder Block", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.55f }, { length, -0.2f }, { clipper, 0.8f }, { punchClick, 0.2f } } },
+            { "Hard Hat", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.65f }, { knock, 3.0f }, { knockTime, 20.0f }, { clipper, 0.8f } } },
+            { "Sledge", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.75f }, { sub, 2.0f }, { clipper, 0.85f } } },
+            { "Square Jaw", "BRICKFACE", 3, { { dirtMode, 1.0f }, { dirt, 0.9f }, { dirtMix, 0.7f }, { clipper, 0.9f } } },
+            // ---------------- JAWBREAKER
+            { "Jawbreaker", "JAWBREAKER", 4, { { punch, 0.9f }, { punchClick, 0.4f }, { knock, 5.0f }, { knockTime, 30.0f }, { dirtMode, 0.0f }, { dirt, 0.3f }, { clipper, 0.5f } } },
+            { "Uppercut", "JAWBREAKER", 4, { { punch, 1.0f }, { punchClick, 0.3f }, { knock, 7.0f }, { knockTime, 30.0f }, { dirtMode, 0.0f }, { dirt, 0.25f }, { clipper, 0.5f } } },
+            { "Knockout", "JAWBREAKER", 4, { { punch, 0.85f }, { knock, 12.0f }, { knockTime, 20.0f }, { dirtMode, 1.0f }, { dirt, 0.3f }, { clipper, 0.6f } } },
+            { "Glass Chin", "JAWBREAKER", 4, { { punch, 0.7f }, { punchClick, 0.7f }, { dirtMode, 0.0f }, { dirt, 0.2f }, { clipper, 0.45f } } },
+            { "Haymaker", "JAWBREAKER", 4, { { punch, 0.9f }, { length, -0.2f }, { dirtMode, 3.0f }, { dirt, 0.4f }, { clipper, 0.55f } } },
+            { "Body Shot", "JAWBREAKER", 4, { { punch, 0.8f }, { sub, 3.0f }, { dirtMode, 0.0f }, { dirt, 0.25f }, { clipper, 0.45f } } },
+            { "Sucker Punch", "JAWBREAKER", 4, { { punch, 1.0f }, { punchClick, 0.5f }, { knock, 4.0f }, { knockTime, 15.0f }, { dirtMode, 1.0f }, { dirt, 0.35f }, { clipper, 0.6f } } },
+            { "Brass Knuckles", "JAWBREAKER", 4, { { punch, 0.75f }, { harmonics, 0.4f }, { dirtMode, 2.0f }, { dirt, 0.45f }, { clipper, 0.55f } } },
+            // ---------------- +1000 AURA
+            { "+1000 Aura", "+1000 AURA", 9, { { dirtMode, 0.0f }, { dirt, 0.5f }, { harmonics, 0.4f }, { clipper, 0.9f }, { sub, 2.0f } } },
+            { "Main Character", "+1000 AURA", 9, { { dirtMode, 3.0f }, { dirt, 0.45f }, { harmonics, 0.5f }, { clipper, 0.85f }, { punch, 0.5f } } },
+            { "Mog", "+1000 AURA", 9, { { dirtMode, 1.0f }, { dirt, 0.6f }, { clipper, 0.95f } } },
+            { "Sigma Sub", "+1000 AURA", 9, { { dirtMode, 0.0f }, { dirt, 0.3f }, { sub, 5.0f }, { clipper, 0.8f } } },
+            { "Aura Farm", "+1000 AURA", 9, { { dirtMode, 2.0f }, { dirt, 0.5f }, { harmonics, 0.35f }, { clipper, 0.85f }, { width, 0.2f } } },
+            { "Rizz Limit", "+1000 AURA", 9, { { dirtMode, 0.0f }, { dirt, 0.55f }, { clipper, 1.0f }, { harmonics, 0.3f } } },
+            { "Loud Mode", "+1000 AURA", 9, { { dirtMode, 3.0f }, { dirt, 0.65f }, { harmonics, 0.45f }, { clipper, 1.0f } } },
+            { "No Cap", "+1000 AURA", 9, { { dirtMode, 1.0f }, { dirt, 0.5f }, { punch, 0.6f }, { clipper, 0.9f } } },
+            // ---------------- CASSETTE GHOST
+            { "Cassette Ghost", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.5f }, { postFilter, 9000.0f }, { clipper, 0.3f } } },
+            { "Chewed Tape", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.7f }, { crushBits, 14.0f }, { postFilter, 7000.0f }, { clipper, 0.35f } } },
+            { "Warm Grave", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.45f }, { sub, 3.0f }, { tilt, -1.5f }, { clipper, 0.3f } } },
+            { "Rewind", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.5f }, { dive, -12.0f }, { diveDelay, 350.0f }, { diveTime, 400.0f }, { clipper, 0.3f } } },
+            { "Dusty Deck", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.55f }, { filterOn, 1.0f }, { cutoff, 4500.0f }, { clipper, 0.3f } } },
+            { "Haunted Hiss", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.6f }, { harmonics, 0.3f }, { clipper, 0.35f } } },
+            { "Ferric", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.65f }, { punch, 0.5f }, { clipper, 0.4f } } },
+            { "Dead Batteries", "CASSETTE GHOST", 6, { { dirtMode, 2.0f }, { dirt, 0.4f }, { dive, -24.0f }, { diveDelay, 0.0f }, { diveTime, 1200.0f }, { clipper, 0.3f } } },
+            // ---------------- FURNACE
+            { "Furnace", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.5f }, { harmonics, 0.3f }, { clipper, 0.4f } } },
+            { "Hellfire", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.75f }, { dirtMix, 0.9f }, { clipper, 0.5f } } },
+            { "Glow Tube", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.35f }, { sub, 3.0f }, { clipper, 0.3f } } },
+            { "Coal Mine", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.6f }, { tilt, -2.0f }, { clipper, 0.4f } } },
+            { "Molten", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.7f }, { harmonics, 0.45f }, { clipper, 0.5f } } },
+            { "Ember", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.3f }, { punch, 0.5f }, { clipper, 0.35f } } },
+            { "Boiler Room", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.6f }, { length, 0.3f }, { clipper, 0.45f } } },
+            { "Blast Furnace", "FURNACE", 6, { { dirtMode, 3.0f }, { dirt, 0.85f }, { clipper, 0.6f }, { sub, 2.0f } } },
+            // ---------------- TOXICUM
+            { "Toxicum", "TOXICUM", 1, { { dirtMode, 1.0f }, { dirt, 0.5f }, { filterOn, 1.0f }, { cutoff, 2500.0f }, { resonance, 0.6f }, { clipper, 0.4f } } },
+            { "Venom", "TOXICUM", 1, { { dirtMode, 3.0f }, { dirt, 0.6f }, { filterOn, 1.0f }, { cutoff, 1800.0f }, { resonance, 0.7f }, { clipper, 0.4f } } },
+            { "Acid Bath", "TOXICUM", 1, { { dirtMode, 1.0f }, { dirt, 0.7f }, { filterOn, 1.0f }, { cutoff, 3500.0f }, { resonance, 0.5f }, { harmonics, 0.3f }, { clipper, 0.5f } } },
+            { "Radioactive", "TOXICUM", 1, { { dirtMode, 4.0f }, { dirt, 0.3f }, { filterOn, 1.0f }, { cutoff, 3000.0f }, { resonance, 0.6f }, { clipper, 0.5f } } },
+            { "Nightshade", "TOXICUM", 1, { { dirtMode, 2.0f }, { dirt, 0.6f }, { filterOn, 1.0f }, { cutoff, 1500.0f }, { resonance, 0.75f }, { sub, 3.0f }, { clipper, 0.35f } } },
+            { "Poison Ivy", "TOXICUM", 1, { { dirtMode, 0.0f }, { dirt, 0.6f }, { filterOn, 1.0f }, { cutoff, 2200.0f }, { resonance, 0.55f }, { punch, 0.5f }, { clipper, 0.4f } } },
+            { "Biohazard", "TOXICUM", 1, { { dirtMode, 1.0f }, { dirt, 0.8f }, { filterOn, 1.0f }, { cutoff, 4000.0f }, { resonance, 0.65f }, { crushBits, 12.0f }, { clipper, 0.5f } } },
+            { "Snake Bite", "TOXICUM", 1, { { dirtMode, 3.0f }, { dirt, 0.5f }, { filterOn, 1.0f }, { cutoff, 2800.0f }, { resonance, 0.5f }, { knock, 5.0f }, { knockTime, 25.0f }, { clipper, 0.4f } } },
+            // ---------------- MOSH PIT
+            { "Mosh Pit", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.55f }, { dirtMix, 0.8f }, { octUp, 0.3f }, { harmonics, 0.3f }, { clipper, 0.8f }, { sub, 3.0f } } },
+            { "Circle Pit", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.45f }, { dirtMix, 0.7f }, { clipper, 0.7f } } },
+            { "Wall of Death", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.7f }, { clipper, 0.9f }, { octUp, 0.4f } } },
+            { "Stage Dive", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.5f }, { dive, -12.0f }, { diveDelay, 220.0f }, { diveTime, 90.0f }, { clipper, 0.7f } } },
+            { "Crowd Kill", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.8f }, { dirtMix, 0.9f }, { clipper, 0.85f } } },
+            { "Headbanger", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.6f }, { punch, 0.7f }, { clipper, 0.8f } } },
+            { "Pit Boss", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.5f }, { octDown, 0.3f }, { clipper, 0.75f } } },
+            { "Broken Barrier", "MOSH PIT", 2, { { dirtMode, 4.0f }, { dirt, 0.9f }, { harmonics, 0.4f }, { clipper, 0.9f } } },
+            // ---------------- GRAVE DUST
+            { "Grave Dust", "GRAVE DUST", 1, { { dirtMode, 5.0f }, { dirt, 0.4f }, { crushBits, 10.0f }, { postFilter, 6000.0f }, { clipper, 0.3f } } },
+            { "Tombstone", "GRAVE DUST", 1, { { dirtMode, 2.0f }, { dirt, 0.5f }, { crushBits, 8.0f }, { filterOn, 1.0f }, { cutoff, 2000.0f }, { clipper, 0.3f } } },
+            { "Crypt", "GRAVE DUST", 1, { { dirtMode, 5.0f }, { dirt, 0.6f }, { crushBits, 12.0f }, { clipper, 0.4f } } },
+            { "Bone Dry", "GRAVE DUST", 1, { { dirtMode, 5.0f }, { dirt, 0.3f }, { crushBits, 6.0f }, { dirtMix, 0.5f }, { clipper, 0.3f } } },
+            { "Dust Devil", "GRAVE DUST", 1, { { dirtMode, 2.0f }, { dirt, 0.5f }, { crushBits, 12.0f }, { postFilter, 5000.0f }, { clipper, 0.35f } } },
+            { "Old Bones", "GRAVE DUST", 1, { { dirtMode, 0.0f }, { dirt, 0.4f }, { crushBits, 10.0f }, { filterOn, 1.0f }, { cutoff, 1500.0f }, { clipper, 0.3f } } },
+            { "Pixel Corpse", "GRAVE DUST", 1, { { dirtMode, 5.0f }, { dirt, 0.8f }, { crushBits, 5.0f }, { dirtMix, 0.7f }, { clipper, 0.4f } } },
+            { "Mausoleum", "GRAVE DUST", 1, { { dirtMode, 5.0f }, { dirt, 0.5f }, { crushBits, 9.0f }, { length, 0.4f }, { clipper, 0.3f } } },
+            // ---------------- VOMITORIUM
+            { "Vomitorium", "VOMITORIUM", 5, { { dirtMode, 1.0f }, { dirt, 1.0f }, { harmonics, 0.6f }, { clipper, 1.0f } } },
+            { "Vomiter", "VOMITORIUM", 5, { { dirtMode, 4.0f }, { dirt, 1.0f }, { clipper, 1.0f } } },
+            { "Bonecrusher", "VOMITORIUM", 5, { { dirtMode, 1.0f }, { dirt, 0.9f }, { crushBits, 8.0f }, { clipper, 0.9f } } },
+            { "Skull Crusher", "VOMITORIUM", 5, { { dirtMode, 3.0f }, { dirt, 1.0f }, { octUp, 0.5f }, { clipper, 1.0f } } },
+            { "Gut Punch", "VOMITORIUM", 5, { { dirtMode, 4.0f }, { dirt, 0.8f }, { punch, 1.0f }, { punchClick, 0.5f }, { clipper, 0.9f } } },
+            { "Meat Grinder", "VOMITORIUM", 5, { { dirtMode, 5.0f }, { dirt, 0.9f }, { crushBits, 6.0f }, { clipper, 0.9f } } },
+            { "Chainsaw", "VOMITORIUM", 5, { { dirtMode, 1.0f }, { dirt, 1.0f }, { octUp, 0.6f }, { harmonics, 0.5f }, { clipper, 0.9f } } },
+            { "Total Annihilation", "VOMITORIUM", 5, { { dirtMode, 4.0f }, { dirt, 1.0f }, { crushBits, 10.0f }, { harmonics, 0.6f }, { clipper, 1.0f } } },
+            // ---------------- BRAINROT
+            { "Brainrot", "BRAINROT", 9, { { harmonics, 0.85f }, { dirtMode, 0.0f }, { dirt, 0.3f }, { sub, 1.0f }, { clipper, 0.3f } } },
+            { "Phone Speaker", "BRAINROT", 9, { { harmonics, 0.7f }, { dirtMode, 3.0f }, { dirt, 0.4f }, { clipper, 0.4f } } },
+            { "Earbud", "BRAINROT", 9, { { harmonics, 0.6f }, { punch, 0.5f }, { dirtMode, 0.0f }, { dirt, 0.3f }, { clipper, 0.35f } } },
+            { "Scroll Stopper", "BRAINROT", 9, { { harmonics, 0.8f }, { dirtMode, 1.0f }, { dirt, 0.4f }, { clipper, 0.5f } } },
+            { "Doomscroll", "BRAINROT", 9, { { harmonics, 0.75f }, { dirtMode, 2.0f }, { dirt, 0.45f }, { clipper, 0.4f } } },
+            { "NPC", "BRAINROT", 9, { { harmonics, 0.5f }, { dirtMode, 0.0f }, { dirt, 0.3f }, { sub, 2.0f }, { clipper, 0.3f } } },
+            { "Ohio", "BRAINROT", 9, { { harmonics, 0.8f }, { dirtMode, 4.0f }, { dirt, 0.3f }, { clipper, 0.5f } } },
+            { "Low Battery", "BRAINROT", 9, { { harmonics, 0.7f }, { dirtMode, 0.0f }, { dirt, 0.35f }, { crushBits, 12.0f }, { clipper, 0.4f } } },
         };
         return list;
+    }
+
+    File favouritesFile()
+    {
+        return PresetManager::userFolder().getChildFile ("favourites.txt");
     }
 
     File presetFileFor (const String& name)
@@ -87,6 +164,22 @@ PresetManager::~PresetManager()
             apvts.removeParameterListener (rp->getParameterID(), this);
 }
 
+const StringArray& PresetManager::categories()
+{
+    static const StringArray list { "SANCTUS", "VELVET COFFIN", "BRICKFACE", "JAWBREAKER", "+1000 AURA", "CASSETTE GHOST",
+                                    "FURNACE", "TOXICUM", "MOSH PIT", "GRAVE DUST", "VOMITORIUM", "BRAINROT" };
+    return list;
+}
+
+void PresetManager::toggleFavourite (const String& name)
+{
+    if (favourites.contains (name)) favourites.removeString (name);
+    else                            favourites.add (name);
+
+    userFolder().createDirectory();
+    favouritesFile().replaceWithText (favourites.joinIntoString ("\n"));
+}
+
 File PresetManager::userFolder()
 {
    #if JUCE_MAC
@@ -104,7 +197,10 @@ void PresetManager::rescan()
         presets.add ({ f.name, f.category, true, {} });
 
     for (auto& file : userFolder().findChildFiles (File::findFiles, false, "*.808k"))
-        presets.add ({ file.getFileNameWithoutExtension(), "User", false, file });
+        presets.add ({ file.getFileNameWithoutExtension(), "USER", false, file });
+
+    favourites = StringArray::fromLines (favouritesFile().loadFileAsString());
+    favourites.removeEmptyStrings();
 }
 
 void PresetManager::parameterChanged (const String& id, float)
@@ -152,6 +248,7 @@ void PresetManager::load (int index)
         const auto km = killMappingFor (f.style);
         values.set (ParamIDs::style, f.style);
         values.set (ParamIDs::kill, presetKill);
+        values.set (ParamIDs::cleanLow, 1);        // the sub always stays clean under the dirt
 
         for (auto& [id, v] : f.values)
             values.set (id, v);

@@ -19,6 +19,7 @@ K808Processor::K808Processor()
     };
     raw.style = rawFor (ParamIDs::style);
     raw.kill = rawFor (ParamIDs::kill);
+    raw.autoLevel = rawFor (ParamIDs::autoLevel);
     raw.inGain = rawFor (ParamIDs::inGain);
     raw.bypass = rawFor (ParamIDs::bypass);
     raw.shapeOn = rawFor (ParamIDs::shapeOn);
@@ -127,6 +128,7 @@ EngineParams K808Processor::readParams() const
     p.kill = raw.kill->load();
     p.inGainDb = raw.inGain->load();
     p.bypass = raw.bypass->load() > 0.5f;
+    p.autoLevel = raw.autoLevel->load() > 0.5f;
 
     p.pitchOn = raw.pitchOn->load() > 0.5f;
     p.knock = raw.knock->load();

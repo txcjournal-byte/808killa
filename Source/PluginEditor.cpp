@@ -6,47 +6,6 @@ using namespace Look;
 
 namespace
 {
-    // design-space layout (1536 x 1024, see tools/make_background_v3.py)
-    const Rectangle<int> topBarArea  { 362, 66, 1160, 70 };
-    const Rectangle<int> contentArea { 362, 144, 1160, 866 };
-    const Rectangle<int> meterArea   { 12, 678, 340, 332 };
-
-    const char* describe (const String& preset)
-    {
-        static const std::map<String, const char*> text = {
-            { "Atlanta Clean",     "Clean, long and punchy. The sub stays pure." },
-            { "Memphis Phonk",     "Dirty and lo-fi: overdriven tape and crushed bits." },
-            { "Drill Chicago",     "Short and hard with a strong knock." },
-            { "Drill NY",          "Short and hard with a clipped edge." },
-            { "Drill UK",          "Hard with warm tape grit." },
-            { "Plugg Soft",        "Soft, almost a pure sine with extra sub." },
-            { "Chicago Boom",      "Long, thick and warm." },
-            { "Classic Trap Boom", "Big boom with a long tail." },
-            { "Clean Sub",         "Only firms up the low end. No distortion." },
-            { "Knock Punch",       "Strong attack and click." },
-            { "Plugg Bounce",      "Short and bouncy with a touch of tube." },
-            { "Phone Punch",       "Extra harmonics so the 808 cuts through on phones." },
-            { "Dirty Knock",       "Hard clipped knock with a clean sub underneath." },
-            { "Lo-Fi Muffle",      "Muffled, crushed and dark." },
-            { "Motor City Chop",   "Chopped short and clipped." },
-            { "Slime Bend",        "Hard clipped with a fast pitch drop at the end of every note." },
-            { "Dive Bomb",         "Every note dives two octaves down." },
-            { "Sub Octave",        "Adds a sub one octave below the 808." },
-            { "Octave Grit",       "Gritty upper octave layered on top." },
-            { "Wobble Wave",       "Pitch, volume and filter wobble in 1/16." },
-            { "Triplet Wub",       "Filter wub in 1/8 triplets." },
-            { "Tape Drop",         "Slow tape-stop style pitch drop." },
-            { "Detroit Clip",      "Aggressive and loud: hard clipped with a sharp knock." },
-            { "Rage Underground",  "Dirty folded saturation with a gritty top octave." },
-        };
-        const auto it = text.find (preset);
-        return it != text.end() ? it->second : "Your own preset.";
-    }
-}
-
-//==============================================================================
-namespace
-{
     // YIN pitch detection on the decimated tuner feed. Returns 0 when no clear pitch.
     float detectPitch (const float* x, int n, double rate)
     {
@@ -90,75 +49,470 @@ namespace
     }
 
     const char* noteNames[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-}
 
-//==============================================================================
-SimplePage::SimplePage (K808Processor& p)
-    : kill   (p.apvts, ParamIDs::kill,   "KILL",   "One knob to push the whole style: more dirt, punch, sub and clipping."),
-      length (p.apvts, ParamIDs::length, "LENGTH", "Shorten (left) or stretch (right) the tail of every 808 note.", true),
-      punch  (p.apvts, ParamIDs::punch,  "PUNCH",  "Boosts the start of every note so the 808 hits harder."),
-      dirt   (p.apvts, ParamIDs::dirt,   "DIRT",   "Amount of distortion. The type of dirt is set by the style (ADVANCED > DIRT)."),
-      sub    (p.apvts, ParamIDs::sub,    "SUB",    "How much sub (low end around 55 Hz) the 808 gets."),
-      bend   (p.apvts, ParamIDs::dive,   "BEND",   "Pitch dive on every note (trap bend). Timing is in ADVANCED > PITCH.", false),
-      wobble (p.apvts, ParamIDs::wobble, "WOBBLE", "Tempo-synced wobble. Target, rate and shape are in ADVANCED > WOBBLE.")
-{
-    for (auto* k : { &kill, &length, &punch, &dirt, &sub, &bend, &wobble })
-        addAndMakeVisible (*k);
-    bend.getSlider().getProperties().set ("fromEnd", true);   // arc grows as the dive gets deeper
-
-    kill.setKnobArea ({ 380, 96, 400, 400 }, 58.0f);
-    length.setKnobArea ({ 85, 60, 170, 170 }, 38.0f);
-    punch.setKnobArea ({ 85, 330, 170, 170 }, 38.0f);
-    sub.setKnobArea ({ 85, 600, 170, 170 }, 38.0f);
-    kill.getSlider().getProperties().set ("hero", true);
-    dirt.setKnobArea ({ 905, 60, 170, 170 }, 38.0f);
-    bend.setKnobArea ({ 905, 330, 170, 170 }, 38.0f);
-    wobble.setKnobArea ({ 905, 600, 170, 170 }, 38.0f);
-}
-
-void SimplePage::setTunerText (const String& text)
-{
-    if (text != tunerText)
+    const char* describeCategory (const String& category)
     {
-        tunerText = text;
-        repaint (300, 780, getWidth() - 600, 66);
+        static const std::map<String, const char*> text = {
+            { "SANCTUS",        "Clean and big. Sub, level and a touch of harmonics." },
+            { "VELVET COFFIN",  "Soft, round clipping. Warm and smooth." },
+            { "BRICKFACE",      "Hard modern clipping. Flat, loud, in your face." },
+            { "JAWBREAKER",     "All about the hit at the start of every note." },
+            { "+1000 AURA",     "Maximum loudness without falling apart." },
+            { "CASSETTE GHOST", "Tape saturation: warm, worn and dusty." },
+            { "FURNACE",        "Tube drive: thick, glowing harmonics." },
+            { "TOXICUM",        "Biting resonant filter over the dirt." },
+            { "MOSH PIT",       "Folded, aggressive rage distortion." },
+            { "GRAVE DUST",     "Lo-fi: crushed bits and old dust." },
+            { "VOMITORIUM",     "Total destruction. Use responsibly." },
+            { "BRAINROT",       "Harmonics so the 808 is heard on phones and earbuds." },
+            { "FAVOURITES",     "Presets you starred." },
+            { "USER",           "Your own saved presets." },
+        };
+        const auto it = text.find (category);
+        return it != text.end() ? it->second : "";
+    }
+
+    // buttons created later must not take keyboard focus either (space bar = DAW play)
+    template <typename C>
+    C* noFocus (C* c)
+    {
+        c->setWantsKeyboardFocus (false);
+        c->setMouseClickGrabsKeyboardFocus (false);
+        return c;
     }
 }
 
-void SimplePage::setStyleText (const String& title, const String& description)
+//==============================================================================
+HeadView::HeadView (K808Processor& p)
+    : processor (p),
+      killParam (*p.apvts.getParameter (ParamIDs::kill)),
+      killAttachment (killParam, [this] (float v) { kill = v; repaint(); }, &p.undoManager),
+      scopeIn (300, 0.0f), scopeOut (300, 0.0f)
 {
-    if (title == styleTitle && description == styleDescription)
-        return;
-    styleTitle = title;
-    styleDescription = description;
+    background = ImageCache::getFromMemory (BinaryData::background_jpg, BinaryData::background_jpgSize);
+    jawImage = ImageCache::getFromMemory (BinaryData::jaw_png, BinaryData::jaw_pngSize);
+    setOpaque (true);
+    setTooltip ("Drag the jaw down = KILL: more of everything the preset does. "
+                "Double-click = default, Ctrl / Cmd + drag = fine. The mouth shows your 808: grey = in, red = out.");
+    killAttachment.sendInitialUpdate();
+}
+
+bool HeadView::hitsJaw (Point<float> pos) const
+{
+    const auto o = Layout::head.getPosition().toFloat();
+    const auto mouth = Layout::mouth.toFloat() - o;
+    const auto open = mouth.withBottom (mouth.getBottom() + jawDrop());
+    const auto jaw = (Layout::jaw.toFloat() - o).translated (0.0f, jawDrop()).reduced (10.0f, 0.0f);
+    return open.contains (pos) || jaw.contains (pos);
+}
+
+void HeadView::paint (Graphics& g)
+{
+    const auto o = Layout::head.getPosition().toFloat();
+    g.drawImage (background, 0, 0, getWidth(), getHeight(), Layout::head.getX(), Layout::head.getY(), getWidth(), getHeight());
+
+    const auto drop = jawDrop();
+    const auto mouth = Layout::mouth.toFloat() - o;
+    const auto inner = mouth.withBottom (mouth.getBottom() + drop).reduced (2.0f);
+
+    // mouth: dark throat with red heat that grows with KILL
+    g.setColour (Colour (0xff050505));
+    g.fillRoundedRectangle (inner, 10.0f);
+    g.setGradientFill (ColourGradient (Palette::redGlow.withAlpha (jlimit (0.0f, 1.0f, 0.08f + 0.32f * kill + 0.2f * beat)),
+                                       inner.getCentreX(), inner.getBottom(),
+                                       Palette::redGlow.withAlpha (0.0f), inner.getCentreX(), inner.getY() + inner.getHeight() * 0.3f, false));
+    g.fillRoundedRectangle (inner, 10.0f);
+
+    // waveform: input grey behind, output red in front, clipped parts bright
+    const auto wave = inner.reduced (12.0f, 8.0f).withTrimmedTop (36.0f);
+    const auto cy = wave.getCentreY(), half = wave.getHeight() * 0.5f;
+    const auto ceiling = Decibels::decibelsToGain (processor.apvts.getRawParameterValue (ParamIDs::ceiling)->load());
+    const auto n = (int) scopeOut.size();
+    const auto colW = wave.getWidth() / (float) n;
+
+    for (int i = 0; i < n; ++i)
+    {
+        const auto v = scopeOut[(size_t) i];
+        const auto a = jmin (1.0f, v) * half;
+        g.setColour (v >= ceiling * 0.97f ? Colour (0xffff7a5c) : Palette::red.withAlpha (0.85f));
+        g.fillRect (wave.getX() + (float) i * colW, cy - a, colW + 0.4f, 2.0f * a);
+    }
+
+    // input as a light outline on top, so you see how much bigger the 808 got
+    Path in;
+    for (int side = 0; side < 2; ++side)
+    {
+        const auto sign = side == 0 ? -1.0f : 1.0f;
+        for (int i = 0; i < n; ++i)
+        {
+            const Point<float> pt (wave.getX() + ((float) i + 0.5f) * colW, cy + sign * jmin (1.0f, scopeIn[(size_t) i]) * half);
+            if (i == 0) in.startNewSubPath (pt); else in.lineTo (pt);
+        }
+    }
+    g.setColour (Colour (0xe0e8e3d8));
+    g.strokePath (in, PathStrokeType (1.6f));
+    g.setColour (Palette::redBright.withAlpha (0.35f));
+    g.fillRect (wave.getX(), cy - ceiling * half, wave.getWidth(), 1.2f);
+    g.fillRect (wave.getX(), cy + ceiling * half, wave.getWidth(), 1.2f);
+
+    // top of the mouth: KILL amount (or the phone check warning)
+    const auto top = inner.withHeight (38.0f).translated (0.0f, 4.0f);
+    if (phoneOn)
+    {
+        g.setColour (Palette::red);
+        g.fillRoundedRectangle (top.reduced (40.0f, 3.0f), 3.0f);
+        g.setColour (Colours::white);
+        g.setFont (fonts->bold (24.0f));
+        g.drawText ("PHONE CHECK ON", top, Justification::centred, false);
+    }
+    else
+    {
+        g.setColour (Palette::text);
+        g.setFont (fonts->bold (32.0f));
+        g.drawText ("KILL " + String (roundToInt (kill * 100.0f)) + "%", top, Justification::centred, false);
+    }
+
+    // jaw
+    const auto jaw = (Layout::jaw.toFloat() - o).translated (0.0f, drop);
+    g.drawImage (jawImage, jaw);
+
+    if (hover && ! dragging)
+    {
+        const auto hint = Rectangle<float> (200.0f, 34.0f).withCentre ({ jaw.getCentreX(), jaw.getY() + 70.0f });
+        g.setColour (Colours::black.withAlpha (0.7f));
+        g.fillRoundedRectangle (hint, 4.0f);
+        g.setColour (Palette::text);
+        g.setFont (fonts->bold (24.0f));
+        g.drawText ("DRAG THE JAW", hint, Justification::centred, false);
+    }
+
+    // eyes glow with KILL and flash on every hit
+    for (auto eye : { Point<float> (606.0f, 283.0f), Point<float> (852.0f, 283.0f) })
+    {
+        const auto c = eye - o;
+        const auto r = 30.0f + 34.0f * kill + 12.0f * beat;
+        const auto a = jlimit (0.0f, 1.0f, 0.1f + 0.5f * kill + 0.4f * beat);
+        g.setGradientFill (ColourGradient (Palette::redGlow.withAlpha (a), c, Palette::redGlow.withAlpha (0.0f), c.translated (r, 0.0f), true));
+        g.fillEllipse (Rectangle<float> (r * 2.0f, r * 2.0f).withCentre (c));
+        g.setColour (Colour (0xffffd6cc).withAlpha (jlimit (0.0f, 1.0f, 0.2f + 0.6f * kill + 0.3f * beat)));
+        g.fillEllipse (Rectangle<float> (8.0f, 8.0f).withCentre (c));
+    }
+}
+
+void HeadView::tick (float outLevel, bool phone)
+{
+    // the jaw "bites" on every new hit: level above its own slow average
+    const auto hit = jlimit (0.0f, 1.0f, (outLevel - slowLevel) * 2.5f);
+    slowLevel += (outLevel - slowLevel) * 0.12f;
+    beat = jmax (hit, beat * 0.8f);
+    phoneOn = phone;
+
+    auto& e = processor.engine;
+    const auto n = (int) scopeOut.size();
+    const auto w = e.scopeWrite.load (std::memory_order_acquire);
+    for (int i = 0; i < n; ++i)
+    {
+        const auto idx = (size_t) ((w - n + i + Engine::scopeSize) % Engine::scopeSize);
+        scopeIn[(size_t) i] = e.scopeIn[idx].load (std::memory_order_relaxed);
+        scopeOut[(size_t) i] = e.scopeOut[idx].load (std::memory_order_relaxed);
+    }
     repaint();
 }
 
-void SimplePage::paint (Graphics& g)
+void HeadView::mouseMove (const MouseEvent& e)
 {
-    const auto r = getLocalBounds().toFloat();
-    drawPanel (g, r);
+    const auto h = hitsJaw (e.position);
+    if (h != hover)
+    {
+        hover = h;
+        setMouseCursor (h ? MouseCursor::UpDownResizeCursor : MouseCursor::NormalCursor);
+        repaint();
+    }
+}
 
-    // style description under KILL
-    const Rectangle<float> info (300.0f, 632.0f, r.getWidth() - 600.0f, 214.0f);
-    drawPanel (g, info, true);
+void HeadView::mouseExit (const MouseEvent&)
+{
+    hover = false;
+    setMouseCursor (MouseCursor::NormalCursor);
+    repaint();
+}
+
+void HeadView::mouseDown (const MouseEvent& e)
+{
+    if (! hitsJaw (e.position))
+        return;
+    dragging = true;
+    dragStart = kill;
+    killAttachment.beginGesture();
+}
+
+void HeadView::mouseDrag (const MouseEvent& e)
+{
+    if (! dragging)
+        return;
+    const auto fine = e.mods.isCtrlDown() || e.mods.isCommandDown();
+    const auto v = jlimit (0.0f, 1.0f, dragStart + (float) e.getDistanceFromDragStartY() / (fine ? 1200.0f : 240.0f));
+    killAttachment.setValueAsPartOfGesture (v);
+}
+
+void HeadView::mouseUp (const MouseEvent&)
+{
+    if (dragging)
+        killAttachment.endGesture();
+    dragging = false;
+    repaint();
+}
+
+void HeadView::mouseDoubleClick (const MouseEvent& e)
+{
+    if (hitsJaw (e.position))
+        killAttachment.setValueAsCompleteGesture (killParam.convertFrom0to1 (killParam.getDefaultValue()));
+}
+
+void HeadView::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& wheel)
+{
+    if (hitsJaw (e.position))
+        killAttachment.setValueAsCompleteGesture (jlimit (0.0f, 1.0f, kill + wheel.deltaY * 0.15f));
+}
+
+//==============================================================================
+MasterPanel::MasterPanel (K808Processor& p)
+    : autoLevel (p.apvts, ParamIDs::autoLevel, "AUTO LEVEL",
+                 "Brings every 808 to the same level before the processing, so presets sound the same on quiet and loud samples."),
+      phone (p.apvts, ParamIDs::phone, "PHONE", "Listen like on a phone speaker. Monitoring only: switch it off before you export!")
+{
+    addAndMakeVisible (meter);
+    addAndMakeVisible (autoLevel);
+    addAndMakeVisible (phone);
+    for (auto& v : values)
+        v = "--";
+}
+
+void MasterPanel::resized()
+{
+    meter.setBounds (4, 44, getWidth() - 8, 228);
+    autoLevel.setBounds (4, getHeight() - 84, getWidth() - 8, 40);
+    phone.setBounds (4, getHeight() - 42, getWidth() - 8, 40);
+}
+
+void MasterPanel::setValues (float peakDb, float lufs, float clipDb, const String& note, const String& key)
+{
+    const String next[5] = {
+        peakDb <= -60.0f ? String ("-inf") : String (peakDb, 1),
+        lufs <= -70.0f ? String ("--") : String (lufs, 1),
+        clipDb < 0.05f ? String ("0.0") : "-" + String (clipDb, 1),
+        note.isEmpty() ? String ("--") : note,
+        key
+    };
+
+    bool changed = false;
+    for (int i = 0; i < 5; ++i)
+        if (values[i] != next[i]) { values[i] = next[i]; changed = true; }
+    if (changed)
+        repaint (0, 272, getWidth(), 160);
+}
+
+void MasterPanel::paint (Graphics& g)
+{
+    g.setColour (Palette::text);
+    g.setFont (fonts->bold (32.0f));
+    g.drawText ("MASTER", Rectangle<int> (0, 4, getWidth(), 38), Justification::centred, false);
+
+    static const char* labels[] = { "PEAK", "LUFS", "CLIP", "NOTE", "KEY" };
+    for (int i = 0; i < 5; ++i)
+    {
+        const Rectangle<float> row (6.0f, 276.0f + (float) i * 31.0f, (float) getWidth() - 12.0f, 29.0f);
+        g.setColour (Colour (0xff050505));
+        g.fillRect (row);
+        g.setColour (Palette::textDim);
+        g.setFont (fonts->sans (20.0f));
+        g.drawText (labels[i], row.withTrimmedLeft (8.0f), Justification::centredLeft, false);
+        g.setColour (i == 2 && values[i] != "0.0" ? Palette::redBright : Palette::text);
+        g.setFont (fonts->mono (22.0f));
+        g.drawText (values[i], row.withTrimmedRight (8.0f), Justification::centredRight, false);
+    }
+}
+
+//==============================================================================
+void PresetBrowser::Star::paintButton (Graphics& g, bool over, bool)
+{
+    const auto r = getLocalBounds().toFloat().reduced (10.0f);
+    Path star;
+    star.addStar (r.getCentre(), 5, r.getWidth() * 0.22f, r.getWidth() * 0.5f, 0.0f);
+    if (on)
+    {
+        g.setColour (Palette::redBright);
+        g.fillPath (star);
+    }
+    g.setColour (on ? Palette::redBright : Palette::textDim.withAlpha (over ? 1.0f : 0.6f));
+    g.strokePath (star, PathStrokeType (1.6f));
+}
+
+namespace
+{
+    const Rectangle<int> browserPanel { 150, 100, 1236, 824 };
+    constexpr int gridX = 500, gridY = 220, gridW = 862, gridBottom = 844;
+}
+
+PresetBrowser::PresetBrowser (K808Processor& p) : processor (p)
+{
+    categoryNames = PresetManager::categories();
+    categoryNames.add ("FAVOURITES");
+    categoryNames.add ("USER");
+
+    for (int i = 0; i < categoryNames.size(); ++i)
+    {
+        auto* b = noFocus (categoryButtons.add (new UI::FlatButton (categoryNames[i])));
+        b->textHeight = 25.0f;
+        b->setBounds (browserPanel.getX() + 20, browserPanel.getY() + 80 + i * 50, 300, 46);
+        b->onClick = [this, name = categoryNames[i]] { showCategory (name); };
+        addAndMakeVisible (b);
+    }
+
+    const StringArray actions { "SAVE AS", "INIT", "UNDO", "REDO", "FOLDER" };
+    for (int i = 0; i < actions.size(); ++i)
+    {
+        auto* b = noFocus (actionButtons.add (new UI::FlatButton (actions[i])));
+        b->textHeight = 24.0f;
+        b->setBounds (gridX + i * 174, browserPanel.getBottom() - 68, 162, 50);
+        addAndMakeVisible (b);
+    }
+    actionButtons[0]->setTooltip ("Save the current sound as your own preset");
+    actionButtons[1]->setTooltip ("Reset every control to its default");
+    actionButtons[4]->setTooltip ("Open the folder with your presets");
+    actionButtons[0]->onClick = [this] { setVisible (false); if (onSaveAs) onSaveAs(); };
+    actionButtons[1]->onClick = [this] { processor.presets.init(); if (onChange) onChange(); rebuild(); };
+    actionButtons[2]->onClick = [this] { processor.undoManager.undo(); if (onChange) onChange(); };
+    actionButtons[3]->onClick = [this] { processor.undoManager.redo(); if (onChange) onChange(); };
+    actionButtons[4]->onClick = [] { PresetManager::userFolder().createDirectory(); PresetManager::userFolder().startAsProcess(); };
+
+    noFocus (&closeButton);
+    closeButton.textHeight = 28.0f;
+    closeButton.setBounds (browserPanel.getRight() - 72, browserPanel.getY() + 16, 56, 50);
+    closeButton.onClick = [this] { setVisible (false); };
+    addAndMakeVisible (closeButton);
+}
+
+void PresetBrowser::open()
+{
+    auto& pm = processor.presets;
+    pm.rescan();
+    const auto index = pm.getCurrentIndex();
+    const auto& list = pm.getPresets();
+    category = isPositiveAndBelow (index, list.size()) ? list.getReference (index).category : categoryNames[0];
+    setVisible (true);
+    toFront (false);
+    rebuild();
+}
+
+void PresetBrowser::showCategory (const String& name)
+{
+    category = name;
+    rebuild();
+}
+
+void PresetBrowser::rebuild()
+{
+    presetButtons.clear();
+    stars.clear();
+
+    auto& pm = processor.presets;
+    const auto& list = pm.getPresets();
+    const auto current = pm.getCurrentIndex();
+
+    Array<int> shown;
+    for (int i = 0; i < list.size(); ++i)
+    {
+        const auto& info = list.getReference (i);
+        if (category == "FAVOURITES" ? pm.isFavourite (info.name) : info.category == category)
+            shown.add (i);
+    }
+
+    const auto cols = shown.size() > 20 ? 3 : 2;
+    const auto rows = (gridBottom - gridY) / 62;
+    const auto colW = (gridW - (cols - 1) * 14) / cols;
+
+    for (int k = 0; k < jmin (shown.size(), cols * rows); ++k)
+    {
+        const auto index = shown[k];
+        const auto name = list.getReference (index).name;
+        const auto x = gridX + (k / rows) * (colW + 14);
+        const auto y = gridY + (k % rows) * 62;
+
+        auto* b = noFocus (presetButtons.add (new UI::FlatButton (name)));
+        b->textHeight = 26.0f;
+        b->active = index == current;
+        b->setBounds (x, y, colW - 56, 54);
+        b->onClick = [this, index]
+        {
+            processor.presets.load (index);
+            if (onChange) onChange();
+            // rebuilding deletes the button that is still inside its click handler, so do it afterwards
+            MessageManager::callAsync ([sp = SafePointer<PresetBrowser> (this)] { if (sp != nullptr) sp->rebuild(); });
+        };
+        addAndMakeVisible (b);
+
+        auto* s = noFocus (stars.add (new Star()));
+        s->on = pm.isFavourite (name);
+        s->setTooltip ("Add to / remove from FAVOURITES");
+        s->setBounds (x + colW - 52, y, 52, 54);
+        s->onClick = [this, s, name]
+        {
+            processor.presets.toggleFavourite (name);
+            s->on = processor.presets.isFavourite (name);
+            s->repaint();
+            if (category == "FAVOURITES")
+                MessageManager::callAsync ([sp = SafePointer<PresetBrowser> (this)] { if (sp != nullptr) sp->rebuild(); });
+        };
+        addAndMakeVisible (s);
+    }
+
+    for (int i = 0; i < categoryButtons.size(); ++i)
+    {
+        categoryButtons[i]->active = categoryNames[i] == category;
+        categoryButtons[i]->repaint();
+    }
+    repaint();
+}
+
+void PresetBrowser::paint (Graphics& g)
+{
+    g.fillAll (Colours::black.withAlpha (0.72f));
+
+    const auto panel = browserPanel.toFloat();
+    g.setColour (Colour (0xf50b0b0a));
+    g.fillRect (panel);
+    g.setColour (Palette::red.withAlpha (0.8f));
+    g.drawRect (panel, 2.0f);
+    g.setColour (Colours::white.withAlpha (0.08f));
+    g.drawRect (panel.reduced (5.0f), 1.0f);
+
+    g.setColour (Palette::text);
+    g.setFont (fonts->bold (46.0f));
+    g.drawText ("PRESETS", Rectangle<float> (panel.getX() + 22.0f, panel.getY() + 14.0f, 300.0f, 56.0f), Justification::centredLeft, false);
+
     g.setColour (Palette::redBright);
     g.setFont (fonts->bold (44.0f));
-    g.drawText (styleTitle.toUpperCase(), info.withHeight (64.0f).translated (0.0f, 10.0f), Justification::centred, false);
+    g.drawText (category, Rectangle<float> ((float) gridX, panel.getY() + 14.0f, 700.0f, 56.0f), Justification::centredLeft, false);
     g.setColour (Palette::text);
-    g.setFont (fonts->sans (27.0f));
-    g.drawFittedText (styleDescription, info.withTrimmedTop (72.0f).withHeight (70.0f).reduced (16.0f, 0.0f).toNearestInt(),
-                      Justification::centred, 2);
+    g.setFont (fonts->sans (26.0f));
+    g.drawText (describeCategory (category), Rectangle<float> ((float) gridX, panel.getY() + 68.0f, (float) gridW, 40.0f),
+                Justification::centredLeft, true);
 
-    // tuner line
-    const auto tunerArea = info.withTrimmedTop (148.0f).reduced (20.0f, 10.0f);
-    g.setColour (Colour (0xff050505));
-    g.fillRoundedRectangle (tunerArea, 3.0f);
-    g.setColour (Palette::boxEdge);
-    g.drawRoundedRectangle (tunerArea, 3.0f, 1.0f);
-    g.setColour (tunerText.startsWith ("NOTE --") ? Palette::textDim : Palette::text);
-    g.setFont (fonts->mono (30.0f));
-    g.drawText (tunerText, tunerArea, Justification::centred, false);
+    if (presetButtons.isEmpty())
+    {
+        g.setColour (Palette::textDim);
+        g.setFont (fonts->sans (26.0f));
+        g.drawText (category == "FAVOURITES" ? "Click the star next to a preset to add it here."
+                                             : "Nothing here yet. Use SAVE AS to store your own sound.",
+                    Rectangle<float> ((float) gridX, (float) gridY, (float) gridW, 60.0f), Justification::centredLeft, true);
+    }
+}
+
+void PresetBrowser::mouseDown (const MouseEvent& e)
+{
+    if (! browserPanel.toFloat().contains (e.position))
+        setVisible (false);
 }
 
 //==============================================================================
@@ -189,32 +543,22 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     auto& s = p.apvts;
 
     tabs = {
-        { "PITCH",    pitchOn,  "KNOCK = pitch hit at the start of each note.  BEND = trap dive after BEND DELAY.  "
-                                "OCT DOWN / OCT UP = extra octave layers.", {} },
-        { "SHAPE",    shapeOn,  {}, {} },
-        { "WOBBLE",   wobbleOn, {}, {} },
-        { "TONE",     toneOn,   {}, {} },
-        { "DIRT",     dirtOn,   {}, {} },
-        { "DUCK",     duckOn,   "Only needed when your beat has a kick. Send the kick to the 808 track as sidechain "
-                                "(FL Studio: kick mixer track > right-click the arrow to the 808 track > Sidechain to this track).", {} },
-        { "OUTPUT",   {},       {}, {} },
-        { "SETTINGS", {},       {}, {} },
-        { "CHOP",     chopOn,   "Rhythmic gate locked to your DAW tempo. ROLL speeds up towards the end of the bar, "
-                                "GROSS and STUTTER are ready-made patterns.", {} },
+        { "PITCH",    pitchOn, "KNOCK = pitch hit at the start of each note.  BEND = trap dive after BEND DELAY.  "
+                               "OCT DOWN / OCT UP = extra octave layers.", {} },
+        { "SHAPE",    shapeOn, {}, {} },
+        { "TONE",     toneOn,  {}, {} },
+        { "DIRT",     dirtOn,  {}, {} },
+        { "OUTPUT",   {},      {}, {} },
+        { "SETTINGS", {},      {}, {} },
     };
-    static constexpr int displayOrder[] = { 0, 1, 2, 8, 3, 4, 5, 6, 7 };
 
-    int visibleTabs = 0;
     for (int i = 0; i < (int) tabs.size(); ++i)
     {
         auto* b = tabButtons.add (new UI::FlatButton (tabs[(size_t) i].name));
-        b->textHeight = 23.0f;
-        b->onClick = [this, i] { showTab (i); };
-        const auto slot = (int) (std::find (std::begin (displayOrder), std::end (displayOrder), i) - std::begin (displayOrder));
-        b->setBounds (12 + slot * 126, 14, 123, 52);
         b->textHeight = 28.0f;
+        b->onClick = [this, i] { showTab (i); };
+        b->setBounds (12 + i * 146, 14, 140, 52);
         addAndMakeVisible (b);
-        ++visibleTabs;
 
         if (tabs[(size_t) i].sectionParam.isNotEmpty())
         {
@@ -223,6 +567,11 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
             addChildComponent (*sectionToggles[i]);
         }
     }
+
+    closeButton.setBounds (1004, 14, 140, 52);
+    closeButton.textHeight = 28.0f;
+    closeButton.setTooltip ("Back to the head");
+    addAndMakeVisible (closeButton);
 
     resetButton.setBounds (1004, 84, 140, 52);
     resetButton.textHeight = 29.0f;
@@ -251,74 +600,53 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
         if (auto* k = dynamic_cast<UI::Knob*> (c); k != nullptr && k->getY() > 400)
             k->setTopLeftPosition (k->getX(), k->getY() - 60);
 
-    // ---- WOBBLE
-    add<UI::ChoiceSelector> (2, { 220, 150, 900, 58 }, s, wobbleTarget, "What the wobble moves: pitch, volume, filter or all of them.");
-    add<UI::ChoiceSelector> (2, { 220, 222, 900, 58 }, s, wobbleRate, "Wobble speed, synced to the DAW tempo (T = triplet, D = dotted).");
-    add<UI::ChoiceSelector> (2, { 220, 294, 900, 58 }, s, wobbleShape, "Wobble waveform.");
-    knob (2, 0, 1, wobble, "DEPTH", "How strong the wobble is.");
-    knob (2, 1, 1, wobbleFade, "FADE IN", "The wobble fades in after each note starts.");
-    for (auto* c : tabs[2].controls)
-        if (auto* k = dynamic_cast<UI::Knob*> (c))
-            k->setTopLeftPosition (k->getX(), k->getY() - 60);
-    add<UI::LedToggle> (2, { 560, 520, 300, 60 }, s, wobbleRetrig, "RETRIGGER", "Restart the wobble on every new note (off = locked to the DAW grid).");
-
     // ---- SHAPE
     knob (1, 1, 0, punch, "PUNCH", "Boosts the attack of every note.");
     knob (1, 2, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
-    knob (1, 3, 0, length, "LENGTH", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
+    knob (1, 3, 0, length, "TAIL", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
 
     // ---- TONE
-    knob (3, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
-    knob (3, 1, 0, harmonics, "HARMONICS", "Adds upper harmonics so the 808 is heard on small speakers.");
-    knob (3, 2, 0, tilt, "TILT", "Tilts the tone darker (left) or brighter (right).", true);
-    add<UI::LedToggle> (3, { 40, 540, 280, 60 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
-    knob (3, 2, 1, cutoff, "CUTOFF", "Low-pass cutoff frequency.");
-    knob (3, 3, 1, resonance, "RESO", "Resonance at the cutoff.");
-    add<UI::ChoiceSelector> (3, { 40, 620, 280, 60 }, s, slope, "Filter steepness.");
+    knob (2, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
+    knob (2, 1, 0, harmonics, "HEAT", "Adds upper harmonics so the 808 is heard on small speakers.");
+    knob (2, 2, 0, tilt, "TILT", "Tilts the tone darker (left) or brighter (right).", true);
+    add<UI::LedToggle> (2, { 40, 540, 280, 60 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
+    knob (2, 2, 1, cutoff, "CUTOFF", "Low-pass cutoff frequency.");
+    knob (2, 3, 1, resonance, "RESO", "Resonance at the cutoff.");
+    add<UI::ChoiceSelector> (2, { 40, 620, 280, 60 }, s, slope, "Filter steepness.");
 
     // ---- DIRT
-    add<UI::ChoiceSelector> (4, { 40, 150, 1080, 62 }, s, dirtMode, "Type of distortion.");
-    knob (4, 0, 1, dirt, "DRIVE", "How hard the 808 is pushed into the distortion.");
-    knob (4, 1, 1, dirtMix, "DIRT MIX", "Blend between clean and distorted 808.");
-    knob (4, 2, 1, crushBits, "CRUSH", "Bit reduction for lo-fi grit (24 = off).");
-    knob (4, 3, 1, postFilter, "POST FILTER", "Low-pass after the distortion to tame fizz.");
-    knob (4, 4, 1, cleanFreq, "CLEAN FREQ", "Below this frequency the sub stays clean when CLEAN LOW is on.");
-    for (auto* c : tabs[4].controls)
+    add<UI::ChoiceSelector> (3, { 40, 150, 1080, 62 }, s, dirtMode, "Type of distortion.");
+    knob (3, 0, 1, dirt, "DRIVE", "How hard the 808 is pushed into the distortion.");
+    knob (3, 1, 1, dirtMix, "DIRT MIX", "Blend between clean and distorted 808.");
+    knob (3, 2, 1, crushBits, "CRUSH", "Bit reduction for lo-fi grit (24 = off).");
+    knob (3, 3, 1, postFilter, "POST FILTER", "Low-pass after the distortion to tame fizz.");
+    knob (3, 4, 1, cleanFreq, "CLEAN FREQ", "Below this frequency the sub stays clean when CLEAN LOW is on.");
+    for (auto* c : tabs[3].controls)
         if (auto* k = dynamic_cast<UI::Knob*> (c))
             k->setTopLeftPosition (k->getX(), k->getY() - 150);
-    add<UI::LedToggle> (4, { 40, 660, 280, 62 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
-    add<UI::LedToggle> (4, { 340, 660, 280, 62 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
-    add<UI::ChoiceSelector> (4, { 700, 660, 420, 62 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
-
-    // ---- DUCK
-    knob (5, 1, 0, duck, "DUCK", "How much the 808 ducks under the kick.");
-    knob (5, 2, 0, duckRel, "RELEASE", "How fast the 808 comes back after the kick.");
-    knob (5, 3, 0, duckShape, "SHAPE", "Soft (left) or hard (right) ducking curve.");
+    add<UI::LedToggle> (3, { 40, 660, 280, 62 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
+    add<UI::LedToggle> (3, { 340, 660, 280, 62 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
+    add<UI::ChoiceSelector> (3, { 700, 660, 420, 62 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
 
     // ---- OUTPUT
-    knob (6, 0, 0, inGain, "INPUT", "Level going into the plugin.", true);
-    knob (6, 1, 0, clipper, "CLIPPER", "Soft to hard clipping at the ceiling. 0 = off.");
-    knob (6, 2, 0, ceiling, "CEILING", "Maximum output level of the clipper.");
-    knob (6, 3, 0, outGain, "OUTPUT", "Output level.", true);
-    knob (6, 4, 0, mix, "MIX", "Dry / wet mix of the whole plugin.");
-    knob (6, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
-    knob (6, 1, 1, width, "WIDTH", "Widens the upper part of the 808. The sub stays mono.");
-
-    // ---- CHOP
-    add<UI::ChoiceSelector> (8, { 220, 150, 900, 58 }, s, chopPattern, "Chop rhythm.");
-    knob (8, 1, 1, chop, "DEPTH", "How deep the chop cuts (100 % = silence between hits).");
-    knob (8, 2, 1, chopGate, "GATE", "How long each chop stays open.");
-    knob (8, 3, 1, chopSmooth, "SMOOTH", "Hard cuts (left) or soft pulsing (right).");
-    for (auto* c : tabs[8].controls)
-        if (auto* k = dynamic_cast<UI::Knob*> (c))
-            k->setTopLeftPosition (k->getX(), k->getY() - 200);
+    knob (4, 0, 0, inGain, "INPUT", "Level going into the plugin.", true);
+    knob (4, 1, 0, clipper, "CLIPPER", "Soft to hard clipping at the ceiling. 0 = off.");
+    knob (4, 2, 0, ceiling, "CEILING", "Maximum output level of the clipper.");
+    knob (4, 3, 0, outGain, "OUTPUT", "Output level.", true);
+    knob (4, 4, 0, mix, "MIX", "Dry / wet mix of the whole plugin.");
+    knob (4, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
+    knob (4, 1, 1, width, "WIDTH", "Widens the upper part of the 808. The sub stays mono.");
+    add<UI::LedToggle> (4, { 760, 600, 340, 62 }, s, autoLevel, "AUTO LEVEL",
+                        "Brings every 808 to the same level before the processing.");
 
     // ---- SETTINGS
     openFolderButton.setBounds (40, 360, 420, 62);
     openFolderButton.textHeight = 23.0f;
     openFolderButton.onClick = [] { PresetManager::userFolder().createDirectory(); PresetManager::userFolder().startAsProcess(); };
     addChildComponent (openFolderButton);
-    tabs[7].controls.push_back (&openFolderButton);
+    tabs[5].controls.push_back (&openFolderButton);
+    add<UI::ChoiceSelector> (5, { 40, 500, 1080, 62 }, s, ParamIDs::style,
+                             "How the KILL jaw pushes the sound: drive, punch, sub and clipper in different amounts.");
 
     showTab (0);
 }
@@ -349,19 +677,9 @@ void AdvancedPage::paint (Graphics& g)
     const auto& tab = tabs[(size_t) current];
     drawLabel (g, tab.name, { 40.0f, 82.0f, 400.0f, 56.0f }, 52.0f, Palette::ink, Justification::centredLeft);
 
-    if (tab.name == "CHOP")
-        drawLabel (g, "PATTERN", { 40.0f, 150.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
-
-    if (tab.name == "WOBBLE")
-    {
-        drawLabel (g, "TARGET", { 40.0f, 150.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
-        drawLabel (g, "RATE",   { 40.0f, 222.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
-        drawLabel (g, "SHAPE",  { 40.0f, 294.0f, 170.0f, 58.0f }, 36.0f, Palette::ink, Justification::centredLeft);
-    }
-
     if (tab.note.isNotEmpty())
     {
-        const Rectangle<float> box (40.0f, tab.controls.empty() ? 160.0f : 660.0f, r.getWidth() - 80.0f, 180.0f);
+        const Rectangle<float> box (40.0f, 660.0f, r.getWidth() - 80.0f, 180.0f);
         drawPanel (g, box, true);
         g.setColour (Palette::text);
         g.setFont (fonts->sans (31.0f));
@@ -378,7 +696,28 @@ void AdvancedPage::paint (Graphics& g)
                           + "by " + JucePlugin_Manufacturer + "\n"
                           + "Double-click a knob = default value.  Ctrl / Cmd + drag = fine adjustment.";
         g.drawFittedText (text, box.reduced (20.0f, 14.0f).toNearestInt(), Justification::topLeft, 5);
+        drawLabel (g, "KILL CHARACTER", { 40.0f, 446.0f, 600.0f, 46.0f }, 36.0f, Palette::ink, Justification::centredLeft);
     }
+}
+
+AdvancedOverlay::AdvancedOverlay (K808Processor& p) : page (p)
+{
+    plaster = ImageCache::getFromMemory (BinaryData::plaster_jpg, BinaryData::plaster_jpgSize);
+    page.setBounds (Layout::advanced);
+    page.closeButton.onClick = [this] { setVisible (false); };
+    addAndMakeVisible (page);
+}
+
+void AdvancedOverlay::paint (Graphics& g)
+{
+    g.fillAll (Colours::black.withAlpha (0.7f));
+    g.drawImage (plaster, Layout::advanced.toFloat());
+}
+
+void AdvancedOverlay::mouseDown (const MouseEvent& e)
+{
+    if (! Layout::advanced.toFloat().contains (e.position))
+        setVisible (false);
 }
 
 //==============================================================================
@@ -391,42 +730,19 @@ Canvas::Canvas()
 void Canvas::paint (Graphics& g)
 {
     g.drawImageAt (background, 0, 0);
-
-    drawPanel (g, topBarArea.toFloat());
-    drawPanel (g, meterArea.toFloat(), true);
-
-    g.setColour (Palette::text);
-    g.setFont (fonts->bold (32.0f));
-    g.drawText ("MASTER", meterArea.toFloat().withHeight (46.0f).translated (18.0f, 8.0f), Justification::centredLeft, false);
-
-    // version in the title bar
-    const Rectangle<float> title (1000.0f, 14.0f, 396.0f, 32.0f);
-    g.setColour (Colour (0xff0d0c0b));
-    g.fillRect (title);
-    g.setColour (Colour (0xffd9d4ca));
-    g.setFont (fonts->mono (21.0f));
-    g.drawText ("LOW END DAMAGE UNIT / REV " + String (JucePlugin_VersionString).upToLastOccurrenceOf (".", false, false),
-                title, Justification::centredRight, false);
-}
-
-void Canvas::paintOverChildren (Graphics& g)
-{
-    if (phoneOn)
-    {
-        const Rectangle<float> banner ((float) contentArea.getX() + 280.0f, (float) contentArea.getY() + 10.0f, 600.0f, 40.0f);
-        g.setColour (Palette::red);
-        g.fillRect (banner);
-        g.setColour (Colours::white);
-        g.setFont (fonts->bold (28.0f));
-        g.drawText ("PHONE CHECK ON  -  TURN OFF BEFORE EXPORT", banner, Justification::centred, false);
-    }
 }
 
 //==============================================================================
 K808Editor::K808Editor (K808Processor& p)
     : AudioProcessorEditor (p), processor (p),
-      simple (p), advanced (p),
-      phoneButton (p.apvts, ParamIDs::phone, "PHONE CHECK", "Listen like on a phone speaker. Monitoring only: switch it off before you export!")
+      head (p), master (p),
+      punch  (p.apvts, ParamIDs::punch,     "PUNCH",  "Boosts the start of every note so the 808 hits harder."),
+      sub    (p.apvts, ParamIDs::sub,       "SUB",    "How much sub (low end around 55 Hz) the 808 gets."),
+      heat   (p.apvts, ParamIDs::harmonics, "HEAT",   "Harmonics so the 808 is heard on phones and small speakers."),
+      tail   (p.apvts, ParamIDs::length,    "TAIL",   "Shorten (left) or stretch (right) the tail of every 808 note.", true),
+      output (p.apvts, ParamIDs::outGain,   "OUTPUT", "Output level.", true),
+      mix    (p.apvts, ParamIDs::mix,       "MIX",    "Blend the original 808 (left) with the processed one (right)."),
+      browser (p), advanced (p)
 {
     setLookAndFeel (&lnf);
     tooltips.setLookAndFeel (&lnf);
@@ -434,15 +750,52 @@ K808Editor::K808Editor (K808Processor& p)
     addAndMakeVisible (canvas);
     canvas.setBounds (0, 0, designWidth, designHeight);
 
-    // ---- top bar
-    const auto bar = topBarArea.reduced (10, 10);
-    simpleTab.setBounds (bar.getX(), bar.getY(), 150, bar.getHeight());
-    advancedTab.setBounds (bar.getX() + 154, bar.getY(), 180, bar.getHeight());
-    prevButton.setBounds (bar.getX() + 350, bar.getY(), 60, bar.getHeight());
-    presetButton.setBounds (bar.getX() + 414, bar.getY(), 410, bar.getHeight());
-    nextButton.setBounds (bar.getX() + 828, bar.getY(), 60, bar.getHeight());
-    abButton.setBounds (bar.getX() + 894, bar.getY(), 72, bar.getHeight());
+    head.setBounds (Layout::head);
+    canvas.addAndMakeVisible (head);
+
+    master.setBounds (Layout::leftPanel);
+    canvas.addAndMakeVisible (master);
+
+    // right panel: 2 x 3 knobs
+    UI::Knob* knobs[] = { &punch, &sub, &heat, &tail, &output, &mix };
+    for (int i = 0; i < 6; ++i)
+    {
+        const auto x = Layout::rightPanel.getX() + (i % 2) * 115 + 20;
+        const auto y = Layout::rightPanel.getY() + (i / 2) * 172 + 36;
+        knobs[i]->setKnobArea ({ x, y, 75, 75 }, 26.0f);
+        knobs[i]->setDark();
+        canvas.addAndMakeVisible (*knobs[i]);
+    }
+
+    // bottom bar: < preset > A/B SAVE EDIT
+    const auto bar = Layout::bottomBar;
+    const auto y = bar.getY() + 10, h = bar.getHeight() - 20;
+    prevButton.setBounds (bar.getX() + 8, y, 54, h);
+    presetButton.setBounds (bar.getX() + 66, y, 328, h);
+    nextButton.setBounds (bar.getX() + 398, y, 54, h);
+    abButton.setBounds (bar.getX() + 460, y, 58, h);
+    saveButton.setBounds (bar.getX() + 522, y, 78, h);
+    editButton.setBounds (bar.getX() + 604, y, 78, h);
+
+    for (auto* b : { &prevButton, &presetButton, &nextButton, &abButton, &saveButton, &editButton })
+    {
+        b->textHeight = 26.0f;
+        canvas.addAndMakeVisible (*b);
+    }
+    presetButton.textHeight = 25.0f;
+
+    prevButton.setTooltip ("Previous preset");
+    nextButton.setTooltip ("Next preset");
+    presetButton.setTooltip ("Open the preset table");
+    saveButton.setTooltip ("Save the current sound as your own preset");
     abButton.setTooltip ("A/B compare: switch between two versions of your settings");
+    editButton.setTooltip ("Open the skull: every parameter");
+
+    prevButton.onClick = [this] { processor.presets.loadNext (-1); refreshPresetLabel(); };
+    nextButton.onClick = [this] { processor.presets.loadNext (1); refreshPresetLabel(); };
+    presetButton.onClick = [this] { browser.open(); };
+    saveButton.onClick = [this] { savePresetAs(); };
+    editButton.onClick = [this] { advanced.setVisible (true); advanced.toFront (false); };
     abButton.onClick = [this]
     {
         processor.presets.toggleAB();
@@ -450,59 +803,16 @@ K808Editor::K808Editor (K808Processor& p)
         abButton.active = processor.presets.isOnB();
         abButton.repaint();
     };
-    canvas.addAndMakeVisible (abButton);
-    saveButton.setBounds (bar.getRight() - 170, bar.getY(), 170, bar.getHeight());
 
-    presetButton.textHeight = 36.0f;
-    for (auto* b : { &simpleTab, &advancedTab, &prevButton, &nextButton, &saveButton, &abButton })
-        b->textHeight = 31.0f;
-    prevButton.setTooltip ("Previous preset");
-    nextButton.setTooltip ("Next preset");
-    presetButton.setTooltip ("Pick a style or preset");
-    saveButton.setTooltip ("Save the current sound as your own preset");
-    simpleTab.setTooltip ("Main page: style, KILL and the macros");
-    advancedTab.setTooltip ("Every parameter, sorted in tabs");
+    // overlays
+    browser.setBounds (0, 0, designWidth, designHeight);
+    browser.onChange = [this] { shownPreset = {}; refreshPresetLabel(); };
+    browser.onSaveAs = [this] { savePresetAs(); };
+    canvas.addChildComponent (browser);
 
-    simpleTab.onClick = [this] { showPage (false); };
-    advancedTab.onClick = [this] { showPage (true); };
-    prevButton.onClick = [this] { processor.presets.loadNext (-1); refreshPresetLabel(); };
-    nextButton.onClick = [this] { processor.presets.loadNext (1); refreshPresetLabel(); };
-    presetButton.onClick = [this] { showPresetMenu(); };
-    saveButton.onClick = [this] { savePresetAs(); };
-
-    for (auto* b : { &simpleTab, &advancedTab, &prevButton, &presetButton, &nextButton, &saveButton })
-        canvas.addAndMakeVisible (*b);
-
-    // ---- pages
-    simple.setBounds (contentArea);
-    advanced.setBounds (contentArea);
-    canvas.addAndMakeVisible (simple);
+    advanced.setBounds (0, 0, designWidth, designHeight);
     canvas.addChildComponent (advanced);
 
-    // ---- master column
-    meter.setBounds (meterArea.getX() + 12, meterArea.getY() + 56, 160, meterArea.getHeight() - 68);
-    canvas.addAndMakeVisible (meter);
-    const Rectangle<int> m (meterArea.getX() + 182, meterArea.getY() + 12, meterArea.getWidth() - 194, meterArea.getHeight() - 24);
-
-    for (auto* l : { &lufsLabel, &peakLabel })
-    {
-        l->setJustificationType (Justification::centred);
-        l->setColour (Label::textColourId, Palette::text);
-        l->setColour (Label::backgroundColourId, Palette::boxFill);
-        l->setColour (Label::outlineColourId, Palette::boxEdge);
-        l->setFont (lnf.fonts->mono (26.0f));
-        canvas.addAndMakeVisible (*l);
-    }
-    peakLabel.setBounds (m.getX(), m.getY(), m.getWidth(), 46);
-    lufsLabel.setBounds (m.getX(), m.getY() + 54, m.getWidth(), 46);
-    peakLabel.setTooltip ("Output peak (dBFS)");
-    lufsLabel.setTooltip ("Output loudness, short-term (LUFS)");
-
-    phoneButton.big = true;
-    phoneButton.setBounds (m.getX(), m.getY() + 112, m.getWidth(), m.getHeight() - 112);
-    canvas.addAndMakeVisible (phoneButton);
-
-    showPage (false);
     refreshPresetLabel();
 
     setResizable (true, true);
@@ -515,14 +825,14 @@ K808Editor::K808Editor (K808Processor& p)
 
     // never take keyboard focus: the space bar etc. must keep reaching the DAW (play / stop)
     setWantsKeyboardFocus (false);
-    std::function<void (Component&)> noFocus = [&noFocus] (Component& c)
+    std::function<void (Component&)> clearFocus = [&clearFocus] (Component& c)
     {
         c.setWantsKeyboardFocus (false);
         c.setMouseClickGrabsKeyboardFocus (false);
         for (auto* child : c.getChildren())
-            noFocus (*child);
+            clearFocus (*child);
     };
-    noFocus (*this);
+    clearFocus (*this);
 
     startTimerHz (30);
 }
@@ -542,7 +852,6 @@ void K808Editor::paint (Graphics& g)
 void K808Editor::resized()
 {
     canvas.setTransform (AffineTransform::scale ((float) getWidth() / (float) designWidth));
-    lnf.uiScale = (float) getWidth() / (float) designWidth;
     processor.apvts.state.setProperty ("uiWidth", getWidth(), nullptr);
 }
 
@@ -569,16 +878,6 @@ void K808Editor::visibilityChanged()
     useSoftwareRenderer();
 }
 
-void K808Editor::showPage (bool adv)
-{
-    simple.setVisible (! adv);
-    advanced.setVisible (adv);
-    simpleTab.active = ! adv;
-    advancedTab.active = adv;
-    simpleTab.repaint();
-    advancedTab.repaint();
-}
-
 void K808Editor::refreshPresetLabel()
 {
     const auto name = processor.presets.getCurrentName();
@@ -588,74 +887,15 @@ void K808Editor::refreshPresetLabel()
 
     shownPreset = name;
     shownModified = modified;
-    presetButton.setButtonText (name.toUpperCase() + (modified ? " *" : ""));
 
     const auto index = processor.presets.getCurrentIndex();
     const auto& list = processor.presets.getPresets();
-    const auto factory = isPositiveAndBelow (index, list.size()) && list.getReference (index).factory;
-    simple.setStyleText (name, factory ? describe (name) : "Your own preset.");
-}
-
-void K808Editor::showPresetMenu()
-{
-    auto& pm = processor.presets;
-    const auto& list = pm.getPresets();
-    const auto current = pm.getCurrentIndex();
-
-    PopupMenu menu;
-    std::map<String, PopupMenu> categories;
-    StringArray order { "Styles", "Clean", "Dirty", "Pitch", "FX", "User" };
-
-    for (int i = 0; i < list.size(); ++i)
-        categories[list.getReference (i).category].addItem (i + 1, list.getReference (i).name, true, i == current);
-
-    for (auto& cat : order)
-        if (categories.count (cat) > 0)
-        {
-            if (cat == "Styles")
-            {
-                menu.addSectionHeader ("STYLES");
-                for (PopupMenu::MenuItemIterator it (categories[cat]); it.next();)
-                    menu.addItem (it.getItem());
-            }
-            else
-            {
-                menu.addSubMenu (cat.toUpperCase(), categories[cat]);
-            }
-        }
-
-    menu.addSeparator();
-    auto& undo = processor.undoManager;
-    menu.addItem (1005, "Undo", undo.canUndo());
-    menu.addItem (1006, "Redo", undo.canRedo());
-    menu.addItem (1007, String ("Copy ") + (pm.isOnB() ? "B to A" : "A to B"));
-    menu.addSeparator();
-    menu.addItem (1001, "Save As...");
-    menu.addItem (1002, "Revert changes", pm.isModified() && current >= 0);
-    menu.addItem (1003, "Init (all defaults)");
-    menu.addItem (1004, "Open presets folder");
-
-    // target the screen area (not the component) so the menu is not shrunk with the editor
-    menu.setLookAndFeel (&lnf);
-    menu.showMenuAsync (PopupMenu::Options().withTargetScreenArea (presetButton.getScreenBounds()).withMinimumWidth (220),
-                        [this] (int result)
-                        {
-                            auto& presets = processor.presets;
-                            if (result >= 1 && result <= 1000)  presets.load (result - 1);
-                            else if (result == 1001)            savePresetAs();
-                            else if (result == 1002)            presets.revert();
-                            else if (result == 1003)            presets.init();
-                            else if (result == 1005)            processor.undoManager.undo();
-                            else if (result == 1006)            processor.undoManager.redo();
-                            else if (result == 1007)            presets.copyToOther();
-                            else if (result == 1004)
-                            {
-                                PresetManager::userFolder().createDirectory();
-                                PresetManager::userFolder().startAsProcess();
-                            }
-                            shownPreset = {};
-                            refreshPresetLabel();
-                        });
+    auto category = isPositiveAndBelow (index, list.size()) ? list.getReference (index).category : String();
+    if (category.isEmpty() || category == name.toUpperCase())
+        category = {};
+    else
+        category += " / ";
+    presetButton.setButtonText (category + name.toUpperCase() + (modified ? " *" : ""));
 }
 
 void K808Editor::savePresetAs()
@@ -691,7 +931,7 @@ void K808Editor::timerCallback()
         const auto db = Decibels::gainToDecibels (peaks[i], -100.0f);
         meterDb[i] = db >= meterDb[i] ? db : jmax (db, meterDb[i] - 1.2f);
     }
-    meter.setLevels (meterDb[0], meterDb[1]);
+    master.meter.setLevels (meterDb[0], meterDb[1]);
 
     const auto outDb = Decibels::gainToDecibels (peaks[1], -100.0f);
     if (outDb >= peakHoldDb || --peakHoldTicks <= 0)
@@ -699,16 +939,12 @@ void K808Editor::timerCallback()
         peakHoldDb = outDb;
         peakHoldTicks = 45;
     }
-    peakLabel.setText (peakHoldDb <= -60.0f ? "-inf" : String (peakHoldDb, 1), dontSendNotification);
 
-    const auto lufs = e.shortTermLufs.load();
-    lufsLabel.setText (lufs <= -70.0f ? "-- LU" : String (lufs, 1) + " LU", dontSendNotification);
-
-    const auto phoneOn = processor.apvts.getRawParameterValue (ParamIDs::phone)->load() > 0.5f;
-    if (phoneOn != canvas.phoneOn)
+    const auto clip = e.clipDb.exchange (0.0f);
+    if (clip >= clipHoldDb || --clipHoldTicks <= 0)
     {
-        canvas.phoneOn = phoneOn;
-        canvas.repaint();
+        clipHoldDb = clip;
+        clipHoldTicks = 30;
     }
 
     if (++tunerTick >= 3)
@@ -716,6 +952,11 @@ void K808Editor::timerCallback()
         tunerTick = 0;
         updateTuner();
     }
+
+    master.setValues (peakHoldDb, e.shortTermLufs.load(), clipHoldDb, lastNote, lastKey);
+
+    const auto phoneOn = processor.apvts.getRawParameterValue (ParamIDs::phone)->load() > 0.5f;
+    head.tick (peaks[1], phoneOn);
 
     refreshPresetLabel();
 }
@@ -745,7 +986,7 @@ void K808Editor::updateTuner()
         const auto cents = roundToInt ((midi - (float) nearest) * 100.0f);
         const auto pc = ((nearest % 12) + 12) % 12;
         keyHistogram[(size_t) pc] += 1.0f;
-        lastNote = String (noteNames[pc]) + String (nearest / 12 - 1) + " " + (cents >= 0 ? "+" : "") + String (cents) + " ct";
+        lastNote = String (noteNames[pc]) + String (nearest / 12 - 1) + " " + (cents >= 0 ? "+" : "") + String (cents);
         noteHoldTicks = 6;
     }
     else if (noteHoldTicks > 0 && --noteHoldTicks == 0)
@@ -754,7 +995,6 @@ void K808Editor::updateTuner()
     }
 
     // key estimate (Krumhansl profiles) once enough notes were heard
-    String key = "--";
     float total = 0.0f;
     for (auto h : keyHistogram) total += h;
     if (total > 15.0f)
@@ -771,10 +1011,8 @@ void K808Editor::updateTuner()
                 if (score > best)
                 {
                     best = score;
-                    key = String (noteNames[tonic]) + (mode == 0 ? " MAJ" : " MIN");
+                    lastKey = String (noteNames[tonic]) + (mode == 0 ? " MAJ" : " MIN");
                 }
             }
     }
-
-    simple.setTunerText ("NOTE " + (lastNote.isEmpty() ? String ("--") : lastNote) + "     KEY " + key);
 }

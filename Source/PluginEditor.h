@@ -5,30 +5,112 @@
 #include "UI/Widgets.h"
 
 //==============================================================================
-// SIMPLE page: KILL + macros
-class SimplePage : public juce::Component
+// Where things sit on the artwork (design space 1536 x 1024, Resources/background.jpg)
+namespace Layout
+{
+    inline const juce::Rectangle<int> leftPanel  { 56, 320, 198, 518 };
+    inline const juce::Rectangle<int> rightPanel { 1250, 320, 230, 518 };
+    inline const juce::Rectangle<int> bottomBar  { 396, 852, 688, 80 };
+    inline const juce::Rectangle<int> head       { 470, 180, 540, 668 };   // animated part of the artwork
+    inline const juce::Rectangle<int> mouth      { 568, 402, 330, 258 };
+    inline const juce::Rectangle<int> jaw        { 552, 650, 368, 162 };   // Resources/jaw.png
+    inline const juce::Rectangle<int> advanced   { 188, 79, 1160, 866 };
+}
+
+//==============================================================================
+// The head: drag the jaw down = KILL, the mouth shows the waveform (input grey, output red)
+class HeadView : public juce::Component, public juce::SettableTooltipClient
 {
 public:
-    explicit SimplePage (K808Processor&);
-    void paint (juce::Graphics&) override;
-    void setStyleText (const juce::String& title, const juce::String& description);
-    void setTunerText (const juce::String& text);
+    explicit HeadView (K808Processor&);
 
-    UI::Knob kill, length, punch, dirt, sub, bend, wobble;
+    void paint (juce::Graphics&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+
+    // called by the editor timer
+    void tick (float outLevel, bool phoneOn);
 
 private:
-    juce::String styleTitle, styleDescription, tunerText { "NOTE --     KEY --" };
+    bool hitsJaw (juce::Point<float>) const;
+    float jawDrop() const noexcept { return kill * 44.0f + beat * 7.0f; }
+
+    K808Processor& processor;
+    juce::RangedAudioParameter& killParam;
+    juce::ParameterAttachment killAttachment;
+    juce::Image background, jawImage;
+
+    float kill = 0.0f, beat = 0.0f, slowLevel = 0.0f, dragStart = 0.0f;
+    bool hover = false, dragging = false, phoneOn = false;
+    std::vector<float> scopeIn, scopeOut;
     juce::SharedResourcePointer<Look::Fonts> fonts;
 };
 
 //==============================================================================
-// ADVANCED page: tabs with every parameter
+// Left panel: IN / OUT meters, peak, loudness, clipper reduction, tuner
+class MasterPanel : public juce::Component
+{
+public:
+    explicit MasterPanel (K808Processor&);
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void setValues (float peakDb, float lufs, float clipDb, const juce::String& note, const juce::String& key);
+
+    UI::Meter meter;
+
+private:
+    UI::LedToggle autoLevel, phone;
+    juce::String values[5];
+    juce::SharedResourcePointer<Look::Fonts> fonts;
+};
+
+//==============================================================================
+// Preset table: categories on the left, presets on the right, stars for favourites
+class PresetBrowser : public juce::Component
+{
+public:
+    explicit PresetBrowser (K808Processor&);
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+    void open();
+    void showCategory (const juce::String& category);
+    std::function<void()> onChange, onSaveAs;
+
+private:
+    struct Star : juce::Button
+    {
+        Star() : Button ("star") {}
+        void paintButton (juce::Graphics&, bool over, bool down) override;
+        bool on = false;
+    };
+
+    void rebuild();
+
+    K808Processor& processor;
+    juce::String category;
+    juce::StringArray categoryNames;
+    juce::OwnedArray<UI::FlatButton> categoryButtons, presetButtons, actionButtons;
+    juce::OwnedArray<Star> stars;
+    UI::FlatButton closeButton { "X" };
+    juce::SharedResourcePointer<Look::Fonts> fonts;
+};
+
+//==============================================================================
+// Every parameter, sorted in tabs ("inside the head")
 class AdvancedPage : public juce::Component
 {
 public:
     explicit AdvancedPage (K808Processor&);
     void paint (juce::Graphics&) override;
     void showTab (int index);
+
+    UI::FlatButton closeButton { "CLOSE" };
 
 private:
     struct Tab
@@ -48,10 +130,23 @@ private:
     std::vector<Tab> tabs;
     juce::OwnedArray<UI::FlatButton> tabButtons;
     juce::OwnedArray<juce::Component> owned;
-    std::unique_ptr<UI::LedToggle> sectionToggles[9];
+    std::unique_ptr<UI::LedToggle> sectionToggles[6];
     UI::FlatButton resetButton { "RESET" }, openFolderButton { "OPEN PRESETS FOLDER" };
     int current = 0;
     juce::SharedResourcePointer<Look::Fonts> fonts;
+};
+
+class AdvancedOverlay : public juce::Component
+{
+public:
+    explicit AdvancedOverlay (K808Processor&);
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+    AdvancedPage page;
+
+private:
+    juce::Image plaster;
 };
 
 //==============================================================================
@@ -60,12 +155,9 @@ class Canvas : public juce::Component
 public:
     Canvas();
     void paint (juce::Graphics&) override;
-    void paintOverChildren (juce::Graphics&) override;
-    bool phoneOn = false;
 
 private:
     juce::Image background;
-    juce::SharedResourcePointer<Look::Fonts> fonts;
 };
 
 //==============================================================================
@@ -86,8 +178,6 @@ public:
 private:
     void timerCallback() override;
     void useSoftwareRenderer();
-    void showPage (bool advanced);
-    void showPresetMenu();
     void savePresetAs();
     void refreshPresetLabel();
     void updateTuner();
@@ -97,19 +187,17 @@ private:
     juce::TooltipWindow tooltips { nullptr, 600 };
     Canvas canvas;
 
-    UI::FlatButton simpleTab { "SIMPLE" }, advancedTab { "ADVANCED" };
-    UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" }, abButton { "A" };
-
-    SimplePage simple;
-    AdvancedPage advanced;
-
-    UI::Meter meter;
-    UI::LedToggle phoneButton;
-    juce::Label lufsLabel, peakLabel;
+    HeadView head;
+    MasterPanel master;
+    UI::Knob punch, sub, heat, tail, output, mix;
+    UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" },
+                   abButton { "A" }, editButton { "EDIT" };
+    PresetBrowser browser;
+    AdvancedOverlay advanced;
 
     float meterDb[2] { -100.0f, -100.0f };
-    float peakHoldDb = -100.0f;
-    int peakHoldTicks = 0;
+    float peakHoldDb = -100.0f, clipHoldDb = 0.0f;
+    int peakHoldTicks = 0, clipHoldTicks = 0;
     juce::String shownPreset;
     bool shownModified = false;
 
@@ -117,7 +205,7 @@ private:
 
     // tuner
     std::array<float, 12> keyHistogram {};
-    juce::String lastNote;
+    juce::String lastNote, lastKey { "--" };
     int noteHoldTicks = 0, tunerTick = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (K808Editor)

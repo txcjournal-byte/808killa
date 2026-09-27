@@ -43,7 +43,7 @@ void Knob::resized()
 void Knob::paint (Graphics& g)
 {
     const auto alpha = isEnabled() ? 1.0f : 0.4f;
-    drawLabel (g, label, Rectangle<float> (0.0f, 0.0f, (float) getWidth(), labelH), labelH, Palette::ink.withMultipliedAlpha (alpha));
+    drawLabel (g, label, Rectangle<float> (0.0f, 0.0f, (float) getWidth(), labelH), labelH, labelColour.withMultipliedAlpha (alpha));
 
     const auto boxH = labelH * 1.05f;
     const auto text = slider.getTextFromValue (slider.getValue());

@@ -243,7 +243,7 @@ int main()
     {
         K808Processor p;
         enableSidechain (p, false);
-        p.presets.load (9);   // long tail style
+        p.presets.load (4);   // Sacred Boom: long tail
         auto input = makeInput (48000.0, 3.0);
         input.clear (0, 48000 * 2, 48000);
         input.clear (1, 48000 * 2, 48000);

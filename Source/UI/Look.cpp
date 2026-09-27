@@ -81,7 +81,7 @@ void LookAndFeel::drawRotarySlider (Graphics& g, int x, int y, int w, int h, flo
     auto polar = [centre] (float a, float r) { return centre + Point<float> (r * std::sin (a), -r * std::cos (a)); };
 
     // tick marks
-    g.setColour (Palette::ink.withAlpha (0.85f));
+    g.setColour ((bool) props["dark"] ? Palette::textDim : Palette::ink.withAlpha (0.85f));
     for (int i = 0; i <= 10; ++i)
     {
         const auto a = startAngle + (float) i / 10.0f * (endAngle - startAngle);

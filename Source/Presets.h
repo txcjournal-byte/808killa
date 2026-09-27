@@ -5,7 +5,7 @@
 struct PresetInfo
 {
     juce::String name;
-    juce::String category;     // Styles / Clean / Dirty / Pitch / FX / User
+    juce::String category;     // one of PresetManager::categories() or "USER"
     bool factory = true;
     juce::File file;           // user presets only
 };
@@ -20,6 +20,10 @@ public:
 
     static constexpr int formatVersion = 1;
     static juce::File userFolder();
+    static const juce::StringArray& categories();   // factory categories in display order
+
+    bool isFavourite (const juce::String& name) const { return favourites.contains (name); }
+    void toggleFavourite (const juce::String& name);
 
     const juce::Array<PresetInfo>& getPresets() const noexcept { return presets; }
     void rescan();
@@ -52,5 +56,6 @@ private:
     std::atomic<bool> modified { false };
     std::atomic<bool> loading { false };
     juce::ValueTree abState[2];
+    juce::StringArray favourites;
     int abSlot = 0;
 };

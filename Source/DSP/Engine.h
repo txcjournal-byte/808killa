@@ -12,6 +12,7 @@ struct EngineParams
     int style = 0;
     float kill = 0.0f, inGainDb = 0.0f;
     bool bypass = false;
+    bool autoLevel = false;     // bring every 808 to the same level before the processing
 
     bool pitchOn = true;
     float knock = 0.0f, knockTimeMs = 30.0f, dive = 0.0f, diveTimeMs = 250.0f, diveDelayMs = 150.0f;
@@ -76,6 +77,12 @@ public:
     // metering (audio thread writes, UI reads)
     std::atomic<float> inPeak { 0.0f }, outPeak { 0.0f }, shortTermLufs { -100.0f };
     std::atomic<bool> sidechainActive { false };
+    std::atomic<float> clipDb { 0.0f };          // largest clipper reduction since the UI last read it
+
+    // waveform scope: peak of the (delayed) input and the output, one value every 5 ms
+    static constexpr int scopeSize = 1024;
+    std::array<std::atomic<float>, scopeSize> scopeIn {}, scopeOut {};
+    std::atomic<int> scopeWrite { 0 };
 
     // tuner feed: input decimated to ~2 kHz (audio thread writes, UI reads the latest samples)
     static constexpr int tunerSize = 4096;
@@ -138,6 +145,9 @@ private:
     float scEnv = 0.0f;
     int scSilentSamples = 1 << 30;
     float rmsPre = 0.0f, rmsPost = 0.0f, agGain = 1.0f;
+    float levelEnv = 0.0f, levelGain = 1.0f;
+    int scopeCount = 0, scopeLength = 240;
+    float scopeInMax = 0.0f, scopeOutMax = 0.0f;
 
     juce::SmoothedValue<float> inGain, outGain, mixAmt, bypassAmt, drive;
 

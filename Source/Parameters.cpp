@@ -65,10 +65,11 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     Builder b;
 
     // ---- global
-    b.choice (ParamIDs::style, "Style", Choices::styles, 0);
+    b.choice (ParamIDs::style, "Character", Choices::styles, 0);
     b.unit (ParamIDs::kill, "Kill", 0.4f);
     b.db (ParamIDs::inGain, "Input", -24.0f, 24.0f, 0.0f);
     b.toggle (ParamIDs::bypass, "Bypass", false);
+    b.toggle (ParamIDs::autoLevel, "Auto Level", true);
 
     // ---- pitch
     auto semis = [] (float v) { const auto r = std::round (v * 10.0f) / 10.0f; return (r > 0.04f ? "+" : "") + String (std::abs (r) < 0.05f ? 0.0f : r, 1) + " st"; };
@@ -160,6 +161,6 @@ StringArray sectionParameters (const String& section)
     if (section == "TONE")   return { toneOn, sub, harmonics, filterOn, cutoff, resonance, slope, tilt };
     if (section == "DIRT")   return { dirtOn, dirtMode, dirt, dirtMix, autoGain, oversample, cleanLow, cleanFreq, crushBits, postFilter };
     if (section == "DUCK")   return { duckOn, duck, duckRel, duckShape };
-    if (section == "OUTPUT") return { clipper, ceiling, monoBelow, outGain, mix, phone, inGain, width };
+    if (section == "OUTPUT") return { clipper, ceiling, monoBelow, outGain, mix, phone, inGain, width, autoLevel };
     return {};
 }

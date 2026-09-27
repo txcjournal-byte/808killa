@@ -16,40 +16,26 @@ GitHub ho sestaví sám po každé změně:
    - **808-KILLA-Installer-macOS** – instalátor (.pkg) pro Mac (VST3 + AU)
 3. Ve FL Studiu: *Options → Manage plugins → Find more plugins*.
 
-## Co umí (verze 0.4)
+## Co umí (verze 0.5)
 
-**SIMPLE stránka:** výběr stylu/presetu (◀ ▶), velký **KILL** a makra **LENGTH, PUNCH, SUB, DIRT, BEND, WOBBLE**,
-ladička (nota + tónina), MASTER metr (peak + LUFS short-term), **PHONE CHECK** a **A/B** porovnání.
+**Hlavní obrazovka:**
+- **Hlava uprostřed:** táhnutím čelisti dolů se nastavuje **KILL**. V puse běží vlna 808: bílá čára = vstup, červená = výstup, světlé špičky = clipper.
+- **MASTER vlevo:** IN/OUT metry, PEAK, LUFS, CLIP (kolik clipper ořezává), ladička (nota + tónina), **AUTO LEVEL** a **PHONE** check.
+- **Vpravo:** PUNCH, SUB, HEAT, TAIL, OUTPUT, MIX.
+- **Dole:** preset `< KATEGORIE / NÁZEV >`, A/B, SAVE, EDIT. Kliknutím na název se otevře tabulka presetů.
 
-**ADVANCED stránka (záložky):**
+**AUTO LEVEL:** každá 808 jde do zpracování ve stejné hlasitosti, takže presety znějí stejně na tichém i hlasitém samplu.
 
-| Záložka | Parametry |
-|---|---|
-| PITCH | Knock (pitch úder), Bend (trap dive) + čas a zpoždění, Octave Down, Octave Up |
-| WOBBLE | LFO na pitch / hlasitost / filtr, sync s tempem (1/2 až 1/32, T, D), 5 tvarů, fade-in, retrigger |
-| CHOP | Rytmické sekání synchronizované s tempem: 1/8, 1/16, 1/16T, 1/32, Roll, Gross, Stutter; Depth, Gate, Smooth |
-| SHAPE | Punch, Click, Length (zkrácení i prodloužení dozvuku) |
-| TONE | Sub, Harmonics, Tilt, Filter (LP 12/24 dB, cutoff, resonance) |
-| DIRT | Soft / Hard Clip / Tape / Tube / Foldback / Bitcrush, Drive, Mix, Crush, Post filter, Clean Low, Auto gain, Oversampling 2×/4×/8× |
-| DUCK | Duck přes sidechain (volitelné): Amount, Release, Shape |
-| OUTPUT | Input, Clipper, Ceiling, Mono below, Width, Output, Dry/Wet |
-| SETTINGS | verze, složka presetů |
+**Presety:** 96 presetů ve 12 kategoriích (SANCTUS, VELVET COFFIN, BRICKFACE, JAWBREAKER, +1000 AURA, CASSETTE GHOST,
+FURNACE, TOXICUM, MOSH PIT, GRAVE DUST, VOMITORIUM, BRAINROT), hvězdička = FAVOURITES, vlastní presety v USER.
+Vlastní presety se ukládají jako `.808k` do `Documents\808 KILLA\Presets` (Mac: `~/Music/808 KILLA/Presets`).
 
-**Styly:** Atlanta Clean, Memphis Phonk, Rage Underground, Detroit Clip, Drill Chicago, Drill NY, Drill UK,
-Plugg Soft, Chicago Boom, Classic Trap Boom.
-**Technické presety:** Clean Sub, Knock Punch, Plugg Bounce, Phone Punch, Dirty Knock, Lo-Fi Muffle, Motor City Chop.
+**EDIT („vnitřek hlavy“):** PITCH (knock, bend, oktávy), SHAPE, TONE, DIRT, OUTPUT, SETTINGS (charakter KILL).
 
-Vlastní presety: tlačítko **SAVE** → uloží se jako `.808k` do `Documents\808 KILLA\Presets`
-(Mac: `~/Music/808 KILLA/Presets`).
-
-**Sidechain ve FL Studiu (DUCK):** na mixer tracku s kickem klikni pravým na šipku k tracku s 808 →
-*Sidechain to this track*. Pak v 808 KILLA zvol sidechain vstup. Bez sidechainu je DUCK ztlumený.
-
-### Stav projektu (odloženo, verze 0.4)
-Plugin je hotový a otestovaný ve FL Studiu, zvuk presetů je finální. Zbývá jen příprava na prodej:
-- uložit verzi tagem `v0.4.0` (spustí plný build Windows + Mac s instalátory)
-- příprava na prodej: repo přepnout na soukromé, licence JUCE, instalátor s EULA, případně licenční klíč, manuál (PDF), texty na e-shop
-- podepsání instalátorů (Windows code-signing, Mac notarizace)
+### Stav projektu
+- verze 0.5 = nová grafika, presety a AUTO LEVEL (test)
+- další krok: nový zvuk PUNCH / SUB / clipper (sub podle noty, punch s předstihem, oversamplovaný clipper)
+- příprava na prodej: repo přepnout na soukromé, licence JUCE, podepsání instalátorů, manuál (PDF), texty na e-shop
 
 ## Build na vlastním PC
 

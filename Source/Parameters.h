@@ -11,6 +11,7 @@ namespace ParamIDs
     inline constexpr auto kill       = "kill";
     inline constexpr auto inGain     = "in_gain";
     inline constexpr auto bypass     = "bypass";
+    inline constexpr auto autoLevel  = "auto_level";
 
     // pitch
     inline constexpr auto pitchOn    = "pitch_on";
@@ -84,9 +85,9 @@ namespace ParamIDs
 
 namespace Choices
 {
-    const juce::StringArray styles { "Atlanta Clean", "Memphis Phonk", "Rage Underground", "Detroit Clip",
-                                     "Drill Chicago", "Drill NY", "Drill UK", "Plugg Soft",
-                                     "Chicago Boom", "Classic Trap Boom" };
+    // KILL characters (how the KILL macro pushes drive, punch, sub and clipper)
+    const juce::StringArray styles { "Pure", "Grit", "Rage", "Brick", "Knock",
+                                     "Hard", "Warm", "Soft", "Boom", "Loud" };
     const juce::StringArray dirtModes { "Soft", "Hard Clip", "Tape", "Tube", "Foldback", "Bitcrush" };
     const juce::StringArray oversampling { "2x", "4x", "8x" };
     const juce::StringArray slopes { "12 dB", "24 dB" };

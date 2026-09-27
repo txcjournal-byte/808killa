@@ -362,6 +362,35 @@ int main()
         check (first < steady * 1.25f, "first hit after silence is " + String (Decibels::gainToDecibels (first / steady), 1) + " dB louder");
     }
 
+    // ---------------------------------------------------------------- first hit after stop / play, full processing
+    std::cout << "[10] first hit after a long silence sounds like every other hit (dirt, punch, clipper)" << std::endl;
+    {
+        const double sr = 48000.0;
+        AudioBuffer<float> input (2, (int) (sr * 12.0));
+        for (int i = 0; i < input.getNumSamples(); ++i)
+        {
+            const auto t = i / sr;
+            const auto playing = t < 3.0 || t >= 9.0;              // play, stop for 6 s, play again
+            const auto v = playing ? 0.15f * test808 (t < 3.0 ? t : t - 9.0) : 0.0f;
+            input.setSample (0, i, v);
+            input.setSample (1, i, v);
+        }
+
+        for (auto index : { 0, 16, 24, 64, 80 })   // Holy Water, Brickface, Jawbreaker, Mosh Pit, Vomitorium
+        {
+            K808Processor p;
+            enableSidechain (p, false);
+            p.presets.load (index);
+            const auto out = run (p, input, sr, 512);
+            const auto lat = p.getLatencySamples();
+            auto rms = [&] (double t) { return out.getRMSLevel (0, (int) (sr * t) + lat, (int) (sr * 0.12)); };
+            const auto steady = rms (2.5), first = rms (9.0);
+            const auto diffDb = Decibels::gainToDecibels (first / steady);
+            std::cout << "    " << p.presets.getCurrentName() << ": first hit " << String (diffDb, 2) << " dB vs steady" << std::endl;
+            check (diffDb < 0.5f, p.presets.getCurrentName() + ": first hit after silence is " + String (diffDb, 1) + " dB louder");
+        }
+    }
+
     std::cout << (failures == 0 ? "ALL TESTS PASSED" : String (failures) + " FAILURES") << std::endl;
     return failures == 0 ? 0 : 1;
 }

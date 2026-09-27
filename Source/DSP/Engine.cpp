@@ -330,6 +330,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     const auto holdFactor = p.dirtMode == bitcrush ? 1 + roundToInt (effDrive * 12.0f) : 1;
     const auto duckExp = 0.5f + 1.5f * (1.0f - p.duckShape);
     const auto levelCoef = 1.0f - onePole (0.002, fs);
+    const auto punchAttack = (float) (fs * 0.001), punchDecay = (float) (fs * 0.035);
     float clipRatio = 1.0f;
 
     const auto scChannels = sidechain != nullptr ? sidechain->getNumChannels() : 0;
@@ -547,7 +548,14 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             }
             notePeak = jmax (notePeak, envFast);
 
-            const auto transient = jlimit (0.0f, 1.0f, (envFast - envSlow) / (envSlow + 1.0e-4f) / 1.5f);
+            // punch envelope starts at every note onset (found in the lookahead), so every hit gets the
+            // same punch, no matter whether the previous note is still ringing or there was silence
+            float transient = 0.0f;
+            if (noteSamples < (1 << 30))
+            {
+                const auto tn = (float) noteSamples;
+                transient = tn < punchAttack ? tn / punchAttack : std::exp (-(tn - punchAttack) / punchDecay);
+            }
 
             float lengthTarget = 1.0f;
             if (p.shapeOn && p.length < -0.001f)
@@ -679,8 +687,12 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 y[c] = v;
             }
 
-            rmsPre = preSq + (rmsPre - preSq) * rmsCoef;
-            rmsPost = postSq + (rmsPost - postSq) * rmsCoef;
+            // in silence (transport stopped) keep the last ratio, so the first hit is compensated like every other
+            if (preSq > 1.0e-6f)
+            {
+                rmsPre = preSq + (rmsPre - preSq) * rmsCoef;
+                rmsPost = postSq + (rmsPost - postSq) * rmsCoef;
+            }
             const auto agTarget = (p.autoGain && p.dirtOn && rmsPost > 1.0e-9f)
                                       ? jlimit (0.1f, 4.0f, std::sqrt ((rmsPre + 1.0e-9f) / (rmsPost + 1.0e-9f)))
                                       : 1.0f;

@@ -53,6 +53,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
     for (auto& c : ch)
     {
         c.lowDelay.prepare (osMaxLatency);
+        c.osBypass.prepare (osMaxLatency);
         c.dryDelay.prepare (latency);
         c.padDelay.prepare (osMaxLatency);
         c.pitchBuf.assign ((size_t) (fs * 4.0) + (size_t) lookahead + 8, 0.0f);
@@ -118,6 +119,7 @@ void Engine::reset()
                          &c.harmHigh, &c.clickHigh, &c.post, &c.kw1, &c.kw2 })
             b->reset();
         c.lowDelay.reset();
+        c.osBypass.reset();
         c.dryDelay.reset();
         c.padDelay.reset();
         c.dcX = c.dcY = c.hold = 0.0f;
@@ -372,7 +374,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             for (int c = 0; c < numCh; ++c)
             {
                 dryBuf.setSample (c, i, data[c][i]);
-                x[c] = ch[(size_t) c].hp20.process (data[c][i] * g);
+                x[c] = data[c][i] * g;     // no input filter: any phase shift here smears the attack of a finished 808
                 detectIn = jmax (detectIn, std::abs (x[c]));
             }
 
@@ -613,9 +615,15 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                     }
                 }
 
+                // complementary split (high = input - low): low + high is exactly the input again,
+                // so the split alone never changes the waveform
                 float low = 0.0f, high = 0.0f;
                 cleanSplit.processSample (c, v, low, high);
-                if (! p.cleanLow || ! p.dirtOn)
+                if (p.cleanLow && p.dirtOn)
+                {
+                    high = v - low;
+                }
+                else
                 {
                     low = 0.0f;
                     high = v;
@@ -631,12 +639,21 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
         {
             dsp::AudioBlock<float> block (data, (size_t) numCh, (size_t) n);
             auto& os = *oversamplers[(size_t) osIndex];
-            auto up = os.processSamplesUp (block);
-            const auto factor = (int) os.getOversamplingFactor();
-            const auto upN = (int) up.getNumSamples();
 
-            if (p.dirtOn)
+            if (! p.dirtOn)
             {
+                // nothing to distort: skip the oversampling filters (their phase would bend the attack),
+                // an integer delay keeps the timing identical
+                for (int c = 0; c < numCh; ++c)
+                    for (int j = 0; j < n; ++j)
+                        data[c][j] = ch[(size_t) c].osBypass.process (data[c][j], osLatency[(size_t) osIndex]);
+            }
+            else
+            {
+                auto up = os.processSamplesUp (block);
+                const auto factor = (int) os.getOversamplingFactor();
+                const auto upN = (int) up.getNumSamples();
+
                 for (int c = 0; c < numCh; ++c)
                 {
                     auto* d = up.getChannelPointer ((size_t) c);
@@ -647,9 +664,9 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                         d[j] = dry + (wet - dry) * p.dirtMix;
                     }
                 }
-            }
 
-            os.processSamplesDown (block);
+                os.processSamplesDown (block);
+            }
         }
 
         // ================= stage C: crush, auto gain, duck, output
@@ -724,17 +741,17 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 y[c] = v;
             }
 
-            if (numCh == 2)
+            // mono below: only the low part of the side signal is removed, the mid is untouched
+            // (a mono 808 passes bit-exact, no crossover phase shift on the attack)
+            if (numCh == 2 && p.monoBelow >= 1.0f)
             {
-                float lowL, highL, lowR, highR;
-                monoSplit.processSample (0, y[0], lowL, highL);
-                monoSplit.processSample (1, y[1], lowR, highR);
-                if (p.monoBelow >= 1.0f)
-                {
-                    const auto low = 0.5f * (lowL + lowR);
-                    y[0] = low + highL;
-                    y[1] = low + highR;
-                }
+                const auto mid = 0.5f * (y[0] + y[1]);
+                const auto side = 0.5f * (y[0] - y[1]);
+                float sideLow, sideHigh;
+                monoSplit.processSample (0, side, sideLow, sideHigh);
+                const auto keep = side - sideLow;
+                y[0] = mid + keep;
+                y[1] = mid - keep;
             }
 
             // width: decorrelated copy of the upper band added to L and subtracted from R

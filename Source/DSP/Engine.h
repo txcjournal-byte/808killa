@@ -95,7 +95,7 @@ private:
     struct Channel
     {
         Biquad hp20, sub, tiltLow, tiltHigh, filt1, filt2, harmBand, harmHigh, clickHigh, post, kw1, kw2;
-        DelayLine lowDelay, dryDelay, padDelay;
+        DelayLine lowDelay, dryDelay, padDelay, osBypass;
         std::vector<float> pitchBuf;
         int pitchWrite = 0;
         Biquad octLow, octSub, octUpHigh;

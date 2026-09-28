@@ -543,6 +543,8 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     auto& s = p.apvts;
 
     tabs = {
+        { "KICK",     {},      "KICK: right = a hit made from the note itself, left = soften the hit that is there.  "
+                               "DROP: the hit falls from high above into the note.  PROTECT: the hit skips the dirt.", {} },
         { "PITCH",    pitchOn, "KNOCK = pitch hit at the start of each note.  BEND = trap dive after BEND DELAY.  "
                                "OCT DOWN / OCT UP = extra octave layers.", {} },
         { "SHAPE",    shapeOn, {}, {} },
@@ -557,7 +559,7 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
         auto* b = tabButtons.add (new UI::FlatButton (tabs[(size_t) i].name));
         b->textHeight = 28.0f;
         b->onClick = [this, i] { showTab (i); };
-        b->setBounds (12 + i * 146, 14, 140, 52);
+        b->setBounds (12 + i * 140, 14, 134, 52);
         addAndMakeVisible (b);
 
         if (tabs[(size_t) i].sectionParam.isNotEmpty())
@@ -588,55 +590,62 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     };
     addChildComponent (resetButton);
 
+    // ---- KICK
+    knob (0, 0, 0, kick, "KICK", "Right = a hit made from the note itself, left = soften the hit that is there.", true);
+    knob (0, 1, 0, kickDrop, "DROP", "The hit falls from high above into the note (the spin hit).");
+    knob (0, 2, 0, kickLength, "LENGTH", "How long the hit lasts.");
+    knob (0, 3, 0, kickBite, "BITE", "How much the hit bites (harmonics on the hit only).");
+    add<UI::LedToggle> (0, { 40, 540, 320, 62 }, s, kickProtect, "PROTECT", "The hit skips the dirt, so it stays as punchy as the original.");
+
     // ---- PITCH
-    knob (0, 0, 0, knock, "KNOCK", "Pitch hit at the start of every note (semitones above the note).");
-    knob (0, 1, 0, knockTime, "KNOCK TIME", "How fast the knock falls back to the note.");
-    knob (0, 2, 0, dive, "BEND", "Trap dive: how far each note drops (semitones).").getSlider().getProperties().set ("fromEnd", true);
-    knob (0, 3, 0, diveTime, "BEND TIME", "How long the dive takes.");
-    knob (0, 4, 0, diveDelay, "BEND DELAY", "How long after the note starts the dive begins.");
-    knob (0, 0, 1, octDown, "OCT DOWN", "Adds a sub one octave below the 808.");
-    knob (0, 1, 1, octUp, "OCT UP", "Adds a gritty octave above the 808.");
-    for (auto* c : tabs[0].controls)
+    knob (1, 0, 0, knock, "KNOCK", "Pitch hit at the start of every note (semitones above the note).");
+    knob (1, 1, 0, knockTime, "KNOCK TIME", "How fast the knock falls back to the note.");
+    knob (1, 2, 0, dive, "BEND", "Trap dive: how far each note drops (semitones).").getSlider().getProperties().set ("fromEnd", true);
+    knob (1, 3, 0, diveTime, "BEND TIME", "How long the dive takes.");
+    knob (1, 4, 0, diveDelay, "BEND DELAY", "How long after the note starts the dive begins.");
+    knob (1, 0, 1, octDown, "OCT DOWN", "Adds a sub one octave below the 808.");
+    knob (1, 1, 1, octUp, "OCT UP", "Adds a gritty octave above the 808.");
+    for (auto* c : tabs[1].controls)
         if (auto* k = dynamic_cast<UI::Knob*> (c); k != nullptr && k->getY() > 400)
             k->setTopLeftPosition (k->getX(), k->getY() - 60);
 
     // ---- SHAPE
-    knob (1, 1, 0, punch, "PUNCH", "Boosts the attack of every note.");
-    knob (1, 2, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
-    knob (1, 3, 0, length, "TAIL", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
+    knob (2, 1, 0, punch, "PUNCH", "Boosts the attack of every note.");
+    knob (2, 2, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
+    knob (2, 3, 0, length, "TAIL", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
 
     // ---- TONE
-    knob (2, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
-    knob (2, 1, 0, harmonics, "HEAT", "Adds upper harmonics so the 808 is heard on small speakers.");
-    knob (2, 2, 0, tilt, "TILT", "Tilts the tone darker (left) or brighter (right).", true);
-    add<UI::LedToggle> (2, { 40, 540, 280, 60 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
-    knob (2, 2, 1, cutoff, "CUTOFF", "Low-pass cutoff frequency.");
-    knob (2, 3, 1, resonance, "RESO", "Resonance at the cutoff.");
-    add<UI::ChoiceSelector> (2, { 40, 620, 280, 60 }, s, slope, "Filter steepness.");
+    knob (3, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
+    knob (3, 1, 0, harmonics, "HEAT", "Adds upper harmonics so the 808 is heard on small speakers.");
+    knob (3, 2, 0, tilt, "TILT", "Tilts the tone darker (left) or brighter (right).", true);
+    add<UI::LedToggle> (3, { 40, 540, 280, 60 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
+    knob (3, 2, 1, cutoff, "CUTOFF", "Low-pass cutoff frequency.");
+    knob (3, 3, 1, resonance, "RESO", "Resonance at the cutoff.");
+    add<UI::ChoiceSelector> (3, { 40, 620, 280, 60 }, s, slope, "Filter steepness.");
 
     // ---- DIRT
-    add<UI::ChoiceSelector> (3, { 40, 150, 1080, 62 }, s, dirtMode, "Type of distortion.");
-    knob (3, 0, 1, dirt, "DRIVE", "How hard the 808 is pushed into the distortion.");
-    knob (3, 1, 1, dirtMix, "DIRT MIX", "Blend between clean and distorted 808.");
-    knob (3, 2, 1, crushBits, "CRUSH", "Bit reduction for lo-fi grit (24 = off).");
-    knob (3, 3, 1, postFilter, "POST FILTER", "Low-pass after the distortion to tame fizz.");
-    knob (3, 4, 1, cleanFreq, "CLEAN FREQ", "Below this frequency the sub stays clean when CLEAN LOW is on.");
-    for (auto* c : tabs[3].controls)
+    add<UI::ChoiceSelector> (4, { 40, 150, 1080, 62 }, s, dirtMode, "Type of distortion.");
+    knob (4, 0, 1, dirt, "DRIVE", "How hard the 808 is pushed into the distortion.");
+    knob (4, 1, 1, dirtMix, "DIRT MIX", "Blend between clean and distorted 808.");
+    knob (4, 2, 1, crushBits, "CRUSH", "Bit reduction for lo-fi grit (24 = off).");
+    knob (4, 3, 1, postFilter, "POST FILTER", "Low-pass after the distortion to tame fizz.");
+    knob (4, 4, 1, cleanFreq, "CLEAN FREQ", "Below this frequency the sub stays clean when CLEAN LOW is on.");
+    for (auto* c : tabs[4].controls)
         if (auto* k = dynamic_cast<UI::Knob*> (c))
             k->setTopLeftPosition (k->getX(), k->getY() - 150);
-    add<UI::LedToggle> (3, { 40, 660, 280, 62 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
-    add<UI::LedToggle> (3, { 340, 660, 280, 62 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
-    add<UI::ChoiceSelector> (3, { 700, 660, 420, 62 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
+    add<UI::LedToggle> (4, { 40, 660, 280, 62 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
+    add<UI::LedToggle> (4, { 340, 660, 280, 62 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
+    add<UI::ChoiceSelector> (4, { 700, 660, 420, 62 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
 
     // ---- OUTPUT
-    knob (4, 0, 0, inGain, "INPUT", "Level going into the plugin.", true);
-    knob (4, 1, 0, clipper, "CLIPPER", "Soft to hard clipping at the ceiling. 0 = off.");
-    knob (4, 2, 0, ceiling, "CEILING", "Maximum output level of the clipper.");
-    knob (4, 3, 0, outGain, "OUTPUT", "Output level.", true);
-    knob (4, 4, 0, mix, "MIX", "Dry / wet mix of the whole plugin.");
-    knob (4, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
-    knob (4, 1, 1, width, "WIDTH", "Widens the upper part of the 808. The sub stays mono.");
-    add<UI::LedToggle> (4, { 760, 600, 340, 62 }, s, autoLevel, "AUTO LEVEL",
+    knob (5, 0, 0, inGain, "INPUT", "Level going into the plugin.", true);
+    knob (5, 1, 0, clipper, "CLIPPER", "Soft to hard clipping at the ceiling. 0 = off.");
+    knob (5, 2, 0, ceiling, "CEILING", "Maximum output level of the clipper.");
+    knob (5, 3, 0, outGain, "OUTPUT", "Output level.", true);
+    knob (5, 4, 0, mix, "MIX", "Dry / wet mix of the whole plugin.");
+    knob (5, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
+    knob (5, 1, 1, width, "WIDTH", "Widens the upper part of the 808. The sub stays mono.");
+    add<UI::LedToggle> (5, { 760, 600, 340, 62 }, s, autoLevel, "AUTO LEVEL",
                         "Brings every 808 to the same level before the processing.");
 
     // ---- SETTINGS
@@ -644,8 +653,8 @@ AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
     openFolderButton.textHeight = 23.0f;
     openFolderButton.onClick = [] { PresetManager::userFolder().createDirectory(); PresetManager::userFolder().startAsProcess(); };
     addChildComponent (openFolderButton);
-    tabs[5].controls.push_back (&openFolderButton);
-    add<UI::ChoiceSelector> (5, { 40, 500, 1080, 62 }, s, ParamIDs::style,
+    tabs[6].controls.push_back (&openFolderButton);
+    add<UI::ChoiceSelector> (6, { 40, 500, 1080, 62 }, s, ParamIDs::style,
                              "How the KILL jaw pushes the sound: drive, punch, sub and clipper in different amounts.");
 
     showTab (0);
@@ -736,10 +745,11 @@ void Canvas::paint (Graphics& g)
 K808Editor::K808Editor (K808Processor& p)
     : AudioProcessorEditor (p), processor (p),
       head (p), master (p),
-      punch  (p.apvts, ParamIDs::punch,     "PUNCH",  "Boosts the start of every note so the 808 hits harder."),
+      kick   (p.apvts, ParamIDs::kick,      "KICK",   "The hit at the start of every note. Right = kicks like a drum, left = soft, only sub. "
+                                                          "Turns a plain sub into an 808 that kicks. More in EDIT > KICK.", true),
+      drop   (p.apvts, ParamIDs::kickDrop,  "DROP",   "The hit falls from high above into the note (the spin hit of kit 808s)."),
       sub    (p.apvts, ParamIDs::sub,       "SUB",    "How much sub (low end around 55 Hz) the 808 gets."),
       heat   (p.apvts, ParamIDs::harmonics, "HEAT",   "Harmonics so the 808 is heard on phones and small speakers."),
-      tail   (p.apvts, ParamIDs::length,    "TAIL",   "Shorten (left) or stretch (right) the tail of every 808 note.", true),
       output (p.apvts, ParamIDs::outGain,   "OUTPUT", "Output level.", true),
       mix    (p.apvts, ParamIDs::mix,       "MIX",    "Blend the original 808 (left) with the processed one (right)."),
       browser (p), advanced (p)
@@ -757,7 +767,7 @@ K808Editor::K808Editor (K808Processor& p)
     canvas.addAndMakeVisible (master);
 
     // right panel: 2 x 3 knobs
-    UI::Knob* knobs[] = { &punch, &sub, &heat, &tail, &output, &mix };
+    UI::Knob* knobs[] = { &kick, &drop, &sub, &heat, &output, &mix };
     for (int i = 0; i < 6; ++i)
     {
         const auto x = Layout::rightPanel.getX() + (i % 2) * 115 + 20;

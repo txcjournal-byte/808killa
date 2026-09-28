@@ -71,6 +71,15 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     b.toggle (ParamIDs::bypass, "Bypass", false);
     b.toggle (ParamIDs::autoLevel, "Auto Level", true);
 
+    // ---- kick
+    b.range (ParamIDs::kick, "Kick", NormalisableRange<float> (-1.0f, 1.0f), 0.0f,
+             [] (float v) { const auto p = roundToInt (v * 100.0f); return (p > 0 ? "+" : "") + String (p) + " %"; });
+    b.range (ParamIDs::kickLength, "Kick Length", NormalisableRange<float> (10.0f, 120.0f, 1.0f), 35.0f,
+             [] (float v) { return String (roundToInt (v)) + " ms"; });
+    b.unit (ParamIDs::kickDrop, "Kick Drop", 0.0f);
+    b.unit (ParamIDs::kickBite, "Kick Bite", 0.5f);
+    b.toggle (ParamIDs::kickProtect, "Kick Protect", true);
+
     // ---- pitch
     auto semis = [] (float v) { const auto r = std::round (v * 10.0f) / 10.0f; return (r > 0.04f ? "+" : "") + String (std::abs (r) < 0.05f ? 0.0f : r, 1) + " st"; };
     auto ms = [] (float v) { return String (roundToInt (v)) + " ms"; };
@@ -157,6 +166,7 @@ StringArray sectionParameters (const String& section)
     if (section == "PITCH")  return { pitchOn, knock, knockTime, dive, diveTime, diveDelay, octDown, octUp };
     if (section == "WOBBLE") return { wobbleOn, wobble, wobbleTarget, wobbleRate, wobbleShape, wobbleFade, wobbleRetrig };
     if (section == "CHOP")   return { chopOn, chop, chopPattern, chopGate, chopSmooth };
+    if (section == "KICK")   return { kick, kickLength, kickDrop, kickBite, kickProtect };
     if (section == "SHAPE")  return { shapeOn, punch, punchClick, length };
     if (section == "TONE")   return { toneOn, sub, harmonics, filterOn, cutoff, resonance, slope, tilt };
     if (section == "DIRT")   return { dirtOn, dirtMode, dirt, dirtMix, autoGain, oversample, cleanLow, cleanFreq, crushBits, postFilter };

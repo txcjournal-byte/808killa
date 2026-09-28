@@ -130,7 +130,7 @@ private:
     std::vector<Tab> tabs;
     juce::OwnedArray<UI::FlatButton> tabButtons;
     juce::OwnedArray<juce::Component> owned;
-    std::unique_ptr<UI::LedToggle> sectionToggles[6];
+    std::unique_ptr<UI::LedToggle> sectionToggles[7];
     UI::FlatButton resetButton { "RESET" }, openFolderButton { "OPEN PRESETS FOLDER" };
     int current = 0;
     juce::SharedResourcePointer<Look::Fonts> fonts;
@@ -189,7 +189,7 @@ private:
 
     HeadView head;
     MasterPanel master;
-    UI::Knob punch, sub, heat, tail, output, mix;
+    UI::Knob kick, drop, sub, heat, output, mix;
     UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" },
                    abButton { "A" }, editButton { "EDIT" };
     PresetBrowser browser;

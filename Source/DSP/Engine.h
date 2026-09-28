@@ -14,6 +14,10 @@ struct EngineParams
     bool bypass = false;
     bool autoLevel = false;     // bring every 808 to the same level before the processing
 
+    // KICK: -1 = soften / remove the hit, 0 = as it is, +1 = strong kick on every note
+    float kick = 0.0f, kickLengthMs = 35.0f, kickDrop = 0.0f, kickBite = 0.5f;
+    bool kickProtect = false;   // keep DIRT off the hit
+
     bool pitchOn = true;
     float knock = 0.0f, knockTimeMs = 30.0f, dive = 0.0f, diveTimeMs = 250.0f, diveDelayMs = 150.0f;
     float octDown = 0.0f, octUp = 0.0f;
@@ -99,6 +103,8 @@ private:
         std::vector<float> pitchBuf;
         int pitchWrite = 0;
         Biquad octLow, octSub, octUpHigh;
+        Biquad kickHp, kickLp;
+        DelayLine protectDelay;
         float octFlip = 1.0f;
         bool octWasNegative = false;
         float dcX = 0.0f, dcY = 0.0f, hold = 0.0f;
@@ -122,7 +128,13 @@ private:
     Biquad phoneHp1, phoneHp2, phonePeak, phoneLp;
 
     juce::AudioBuffer<float> dryBuf, lowBuf, preBuf;
-    std::vector<float> driveGain, wobbleGain, wobbleCutoff, chopGain;
+    std::vector<float> driveGain, wobbleGain, wobbleCutoff, chopGain, protectEnv;
+    DelayLine protectEnvDelay;
+    Biquad f0Lp;
+    float f0Last = 0.0f, f0Est = 45.0f;     // pitch of the 808 for the KICK DROP layer
+    int f0Count = 0;
+    double dropPhase = 0.0, dropNotePhase = 0.0;
+    bool dropZcSeen = false;
     DelayLine widthDelay;
     Biquad widthHp1, widthHp2, tunerLp1, tunerLp2;
     int tunerFactor = 24, tunerCount = 0;
@@ -132,7 +144,7 @@ private:
 
     // pitch FX state
     float pitchDelay = 0.0f, vibrato = 0.0f, oldDelay = 0.0f;
-    int crossfade = 0, crossfadeLength = 1, onsetCountdown = -1, noteSamples = 1 << 30, preHold = 0;
+    int crossfade = 0, crossfadeLength = 1, onsetCountdown = -1, noteSamples = 1 << 30, preHold = 0, preRise = 0;
     float preFast = 0.0f, preSlow = 0.0f;
 
     // wobble LFO state

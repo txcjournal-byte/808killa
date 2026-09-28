@@ -54,6 +54,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
     {
         c.lowDelay.prepare (osMaxLatency);
         c.osBypass.prepare (osMaxLatency);
+        c.protectDelay.prepare (osMaxLatency);
         c.dryDelay.prepare (latency);
         c.padDelay.prepare (osMaxLatency);
         c.pitchBuf.assign ((size_t) (fs * 4.0) + (size_t) lookahead + 8, 0.0f);
@@ -69,6 +70,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
     wobbleGain.assign ((size_t) maxBlock, 1.0f);
     wobbleCutoff.assign ((size_t) maxBlock, 20000.0f);
     chopGain.assign ((size_t) maxBlock, 1.0f);
+    protectEnv.assign ((size_t) maxBlock, 0.0f);
+    protectEnvDelay.prepare (osMaxLatency);
     widthDelay.prepare ((int) (fs * 0.02));
     widthHp1.setHighPass (fs, 150.0, 0.707);
     widthHp2.setHighPass (fs, 150.0, 0.707);
@@ -93,6 +96,7 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
     phoneHp2.setHighPass (fs, 200.0, 0.707);
     phonePeak.setPeak (fs, 1500.0, 1.0, 4.0);
     phoneLp.setLowPass (fs, 7000.0, 0.707);
+    f0Lp.setLowPass (fs, 150.0, 0.707);
 
     for (auto& c : ch)
     {
@@ -100,6 +104,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
         c.harmBand.setBandPass (fs, 180.0, 0.6);
         c.harmHigh.setHighPass (fs, 150.0, 0.707);
         c.clickHigh.setHighPass (fs, 1800.0, 0.707);
+        c.kickHp.setHighPass (fs, 120.0, 0.707);
+        c.kickLp.setLowPass (fs, 140.0, 0.707);
         c.kw1.setHighShelf (fs, 1681.974450955533, 0.7071752369554196, 3.999843853973347);
         c.kw2.setHighPass (fs, 38.13547087602444, 0.5003270373238773);
     }
@@ -116,10 +122,12 @@ void Engine::reset()
     for (auto& c : ch)
     {
         for (auto* b : { &c.hp20, &c.sub, &c.tiltLow, &c.tiltHigh, &c.filt1, &c.filt2, &c.harmBand,
-                         &c.harmHigh, &c.clickHigh, &c.post, &c.kw1, &c.kw2 })
+                         &c.harmHigh, &c.clickHigh, &c.post, &c.kw1, &c.kw2,
+                         &c.kickHp, &c.kickLp })
             b->reset();
         c.lowDelay.reset();
         c.osBypass.reset();
+        c.protectDelay.reset();
         c.dryDelay.reset();
         c.padDelay.reset();
         c.dcX = c.dcY = c.hold = 0.0f;
@@ -139,10 +147,12 @@ void Engine::reset()
     noteSamples = 1 << 30;
     preFast = preSlow = 0.0f;
     preHold = 0;
+    preRise = 0;
     lfoPhase = 0.0;
     sampleHold = 0.0f;
     wobbleFilter.reset();
     widthDelay.reset();
+    protectEnvDelay.reset();
     for (auto* b : { &widthHp1, &widthHp2, &tunerLp1, &tunerLp2 })
         b->reset();
     chopBeat = 0.0;
@@ -160,6 +170,10 @@ void Engine::reset()
     envFast = envSlow = envGate = notePeak = scEnv = 0.0f;
     levelMeasurePeak = 0.0f;
     levelMeasureLeft = 0;
+    f0Lp.reset();
+    f0Last = 0.0f;
+    f0Count = 0;
+    dropPhase = 0.0;
     scopeCount = 0;
     scopeInMax = scopeOutMax = 0.0f;
     lengthGain = 1.0f;
@@ -296,6 +310,16 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
 
     // ---- pitch FX + wobble setup
     const auto pitchActive = p.pitchOn;
+    const auto pitchRun = pitchActive;
+    const auto kickLen = jmax (5.0f, p.kickLengthMs) * 0.001f;
+    // measured on "spin" kit 808s: the hit starts ~3 octaves above the note and falls with ~15 ms
+    const auto dropSweep = (float) fs * kickLen / 2.4f;         // how fast the kick falls to the note
+    const auto dropOctaves = p.kickDrop * 3.2f;                 // starts up to 3.2 octaves above the note
+    const auto kickTau = (float) fs * kickLen / 2.5f;
+    const auto kickAttack = (float) fs * 0.0004f;
+    const auto protectHold = (float) fs * kickLen;
+    const auto biteGain = 6.0f + 60.0f * p.kickBite;       // hard: sharp edges = bright harmonics up into the kHz range
+    const auto useProtect = p.kickProtect && p.dirtOn;
     const auto knockTau = jmax (0.001f, p.knockTimeMs * 0.001f / 3.0f);
     const auto diveDelayS = p.diveDelayMs * 0.001f;
     const auto diveTimeS = jmax (0.01f, p.diveTimeMs * 0.001f);
@@ -429,9 +453,14 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             preFast = follow (preFast, detectIn, fastA, fastR);
             preSlow = follow (preSlow, detectIn, slowA, slowR);
             if (preHold > 0) --preHold;
+            // how long the level has been rising: the note really started that long before it was detected
+            if (preFast <= preSlow * 1.1f || preFast < 0.001f) preRise = 0;
+            else if (preRise < lookahead) ++preRise;
+
             if (preFast > 0.003f && preFast > preSlow * 1.6f && preHold == 0)
             {
-                onsetCountdown = lookahead;
+                // the read head reaches the true start of the note (plus 0.5 ms margin), not the detection point
+                onsetCountdown = jmax (0, lookahead - preRise - (int) (fs * 0.0005));
                 preHold = (int) (fs * 0.06);
                 levelMeasureLeft = lookahead;
                 levelMeasurePeak = 0.0f;
@@ -493,19 +522,19 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
 
             // ---- pitch envelope -> vari-speed read position
             float semis = 0.0f;
-            if (pitchActive)
+            if (pitchRun)
             {
                 const auto t = (float) noteSamples / (float) fs;
-                if (p.knock > 0.0f)
+                if (pitchActive && p.knock > 0.0f)
                     semis += p.knock * std::exp (-t / knockTau);
-                if (p.dive < 0.0f && t > diveDelayS)
+                if (pitchActive && p.dive < 0.0f && t > diveDelayS)
                 {
                     const auto k = jmin (1.0f, (t - diveDelayS) / diveTimeS);
                     semis += p.dive * k * k * (3.0f - 2.0f * k);
                 }
             }
             pitchDelay = jlimit (2.0f, maxDelay, pitchDelay + 1.0f - std::exp2 (semis / 12.0f));
-            if (! pitchActive && crossfade == 0)
+            if (! pitchRun && crossfade == 0)
                 pitchDelay = (float) lookahead;
 
             if (wobblePitch)
@@ -548,6 +577,71 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             if (crossfade == 0)
                 oldDelay = readDelay;
 
+            // ---- pitch of the 808 (zero crossings of the low-passed signal), for the KICK DROP layer
+            {
+                const auto mono = f0Lp.process (numCh > 1 ? 0.5f * (x[0] + x[1]) : x[0]);
+                ++f0Count;
+                if (f0Last <= 0.0f && mono > 0.0f && std::abs (mono) + std::abs (f0Last) > 1.0e-3f)
+                {
+                    const auto hz = (float) fs / (float) f0Count;
+                    if (hz > 25.0f && hz < 200.0f)
+                        f0Est += (hz - f0Est) * 0.3f;
+                    f0Count = 0;
+                }
+                f0Last = mono;
+            }
+
+            // ---- KICK DROP: the note is replaced by a sine that falls from high above into it (the "spin" hit),
+            // then handed back to the note. The phase of the note is read from the lookahead buffer, so the
+            // falling sine lands exactly in phase and the hand-back is seamless.
+            if (p.kickDrop > 0.001f && noteSamples < (1 << 30))
+            {
+                const auto tn = (float) noteSamples;
+                const auto cycle = (double) f0Est / fs;
+                if (noteSamples == 0)
+                {
+                    dropPhase = 0.0;
+                    dropZcSeen = false;
+                    // first rising zero crossing of the note ahead of the read head -> phase of the note now
+                    const auto& buf = ch[0].pitchBuf;
+                    const auto size = (int) buf.size();
+                    const auto readPos = ch[0].pitchWrite - (int) readDelay;
+                    int ahead = -1;
+                    for (int k = 1; k < (int) readDelay - 1; ++k)
+                    {
+                        const auto a = buf[(size_t) (((readPos + k - 1) % size + size) % size)];
+                        const auto b = buf[(size_t) (((readPos + k) % size + size) % size)];
+                        if (a <= 0.0f && b > 0.0f) { ahead = k; break; }
+                    }
+                    dropNotePhase = ahead > 0 ? -(double) ahead * cycle : 0.0;
+                }
+                else
+                {
+                    dropNotePhase += cycle;
+                }
+                if (f0Count == 0 && noteSamples > 0)
+                    dropZcSeen = true;          // from the first measured crossing on, follow the note directly
+                const auto notePhase = dropZcSeen ? (double) f0Count * cycle + 0.05 : dropNotePhase;
+
+                const auto octaves = dropOctaves * std::exp (-tn / dropSweep);
+                dropPhase += cycle * std::exp2 (octaves);
+
+                auto err = notePhase - dropPhase;
+                err -= std::round (err);
+                const auto lock = jlimit (0.0f, 1.0f, 1.0f - octaves);           // locks in while the fall ends
+                dropPhase += err * 0.02 * lock;
+                dropPhase -= std::floor (dropPhase);
+
+                const auto fadeIn = tn < kickAttack ? tn / kickAttack : 1.0f;
+                const auto handBack = jlimit (0.0f, 1.0f, (octaves - 0.08f) / 0.35f); // 1 while falling, 0 once back on the note
+                const auto w = handBack;                                           // DROP sets the depth, not a blend
+                const auto ref = levelNote > 0.0f ? levelNote * levelGain : 0.5f;
+                const auto boost = 1.0f + 0.35f * std::exp (-tn / dropSweep);    // the hit is a bit louder than the body
+                const auto layer = (float) std::sin (MathConstants<double>::twoPi * dropPhase) * ref * boost * fadeIn;
+                for (int c = 0; c < numCh; ++c)
+                    x[c] = x[c] * (1.0f - w) + layer * w;
+            }
+
             // linked note detection (808s are monophonic)
             envFast = follow (envFast, detect, fastA, fastR);
             envSlow = follow (envSlow, detect, slowA, slowR);
@@ -563,12 +657,15 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
 
             // punch envelope starts at every note onset (found in the lookahead), so every hit gets the
             // same punch, no matter whether the previous note is still ringing or there was silence
-            float transient = 0.0f;
+            float transient = 0.0f, kickEnv = 0.0f, protect = 0.0f;
             if (noteSamples < (1 << 30))
             {
                 const auto tn = (float) noteSamples;
                 transient = tn < punchAttack ? tn / punchAttack : std::exp (-(tn - punchAttack) / punchDecay);
+                kickEnv = tn < kickAttack ? tn / kickAttack : std::exp (-(tn - kickAttack) / kickTau);
+                protect = tn < protectHold ? 1.0f : std::exp (-(tn - protectHold) / (0.5f * protectHold));
             }
+            protectEnv[(size_t) i] = useProtect ? protect : 0.0f;
 
             float lengthTarget = 1.0f;
             if (p.shapeOn && p.length < -0.001f)
@@ -590,6 +687,22 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             {
                 auto& st = ch[(size_t) c];
                 auto v = x[c];
+
+                // ---- KICK: add a hit made from the note itself, or soften the hit that is there
+                {
+                    const auto bite = st.kickHp.process (std::tanh (v * biteGain));   // harmonics of the note
+                    const auto soft = st.kickLp.process (v);
+                    if (p.kick > 0.001f)
+                    {
+                        const auto k = p.kick * kickEnv;
+                        v = v * (1.0f + 0.45f * k) + bite * k * (0.3f + 1.2f * p.kickBite);
+                    }
+                    else if (p.kick < -0.001f)
+                    {
+                        const auto k = -p.kick * protect;          // soften over the whole hit, not only its first ms
+                        v = (v + (soft - v) * k) * (1.0f - 0.35f * k * kickEnv);
+                    }
+                }
 
                 const auto clickPart = st.clickHigh.process (v);
                 if (p.shapeOn)
@@ -685,11 +798,19 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 scEnv = follow (scEnv, s, scA, scR);
             }
             const auto duckGain = useDuck ? 1.0f - p.duck * std::pow (jlimit (0.0f, 1.0f, scEnv * 3.0f), duckExp) : 1.0f;
+            const auto protectNow = protectEnvDelay.process (protectEnv[(size_t) i], osMaxLatency);
+            // clean hit at the level of the dirty signal around it, so PROTECT never makes the hit quieter
+            const auto protectMatch = jlimit (0.25f, 8.0f, std::sqrt ((rmsPost + 1.0e-9f) / (rmsPre + 1.0e-9f)));
 
             for (int c = 0; c < numCh; ++c)
             {
                 auto& st = ch[(size_t) c];
                 auto v = st.padDelay.process (data[c][i], padDelay);
+
+                // PROTECT: the hit of every note skips the dirt (clean signal lined up with the dirt path)
+                const auto clean = st.protectDelay.process (preBuf.getSample (c, i), osMaxLatency);
+                if (protectNow > 0.0f)
+                    v += (clean * protectMatch - v) * protectNow;
 
                 if (p.dirtOn)
                 {

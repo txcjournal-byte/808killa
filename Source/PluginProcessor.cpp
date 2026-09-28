@@ -20,6 +20,11 @@ K808Processor::K808Processor()
     raw.style = rawFor (ParamIDs::style);
     raw.kill = rawFor (ParamIDs::kill);
     raw.autoLevel = rawFor (ParamIDs::autoLevel);
+    raw.kick = rawFor (ParamIDs::kick);
+    raw.kickLength = rawFor (ParamIDs::kickLength);
+    raw.kickDrop = rawFor (ParamIDs::kickDrop);
+    raw.kickBite = rawFor (ParamIDs::kickBite);
+    raw.kickProtect = rawFor (ParamIDs::kickProtect);
     raw.inGain = rawFor (ParamIDs::inGain);
     raw.bypass = rawFor (ParamIDs::bypass);
     raw.shapeOn = rawFor (ParamIDs::shapeOn);
@@ -129,6 +134,12 @@ EngineParams K808Processor::readParams() const
     p.inGainDb = raw.inGain->load();
     p.bypass = raw.bypass->load() > 0.5f;
     p.autoLevel = raw.autoLevel->load() > 0.5f;
+
+    p.kick = raw.kick->load();
+    p.kickLengthMs = raw.kickLength->load();
+    p.kickDrop = raw.kickDrop->load();
+    p.kickBite = raw.kickBite->load();
+    p.kickProtect = raw.kickProtect->load() > 0.5f;
 
     p.pitchOn = raw.pitchOn->load() > 0.5f;
     p.knock = raw.knock->load();

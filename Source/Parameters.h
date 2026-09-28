@@ -13,6 +13,13 @@ namespace ParamIDs
     inline constexpr auto bypass     = "bypass";
     inline constexpr auto autoLevel  = "auto_level";
 
+    // KICK: the hit at the start of every note
+    inline constexpr auto kick        = "kick";
+    inline constexpr auto kickLength  = "kick_length";
+    inline constexpr auto kickDrop    = "kick_drop";
+    inline constexpr auto kickBite    = "kick_bite";
+    inline constexpr auto kickProtect = "kick_protect";
+
     // pitch
     inline constexpr auto pitchOn    = "pitch_on";
     inline constexpr auto knock      = "knock";

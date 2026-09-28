@@ -393,6 +393,89 @@ int main()
         }
     }
 
+    // ---------------------------------------------------------------- KICK
+    std::cout << "[11] KICK: adds a hit to a plain sub, DROP falls into the note without a gap, left softens" << std::endl;
+    {
+        const double sr = 48000.0;
+        AudioBuffer<float> sub (2, (int) (sr * 3.0));
+        for (int i = 0; i < sub.getNumSamples(); ++i)
+        {
+            const auto t = std::fmod (i / sr, 1.0);
+            const auto fade = jmin (1.0, t * 2000.0) * jmin (1.0, (1.0 - t) * 200.0);   // no clicks between the notes
+            const auto v = (float) (0.6 * std::sin (MathConstants<double>::twoPi * 32.7 * t) * std::exp (-t * 1.2) * fade);
+            sub.setSample (0, i, v);
+            sub.setSample (1, i, v);
+        }
+
+        auto render = [&] (const AudioBuffer<float>& in, float kick, float drop)
+        {
+            K808Processor p;
+            enableSidechain (p, false);
+            setParam (p, ParamIDs::dirtOn, 0.0f);
+            setParam (p, ParamIDs::clipper, 0.0f);
+            setParam (p, ParamIDs::punch, 0.0f);
+            setParam (p, ParamIDs::toneOn, 0.0f);    // HEAT adds its own harmonics; test the hit alone
+            setParam (p, ParamIDs::kick, kick);
+            setParam (p, ParamIDs::kickDrop, drop);
+            auto out = run (p, in, sr, 512);
+            AudioBuffer<float> aligned (1, in.getNumSamples() - p.getLatencySamples());
+            aligned.copyFrom (0, 0, out, 0, p.getLatencySamples(), aligned.getNumSamples());
+            return aligned;
+        };
+        // energy above 250 Hz in the first 30 ms of the note at 2 s, relative to the whole attack
+        auto attackBrightness = [&] (const AudioBuffer<float>& b)
+        {
+            IIRFilter hp, hp2;   // 4th order, so the fundamental of the 808 stays out
+            hp.setCoefficients (IIRCoefficients::makeHighPass (sr, 250.0));
+            hp2.setCoefficients (IIRCoefficients::makeHighPass (sr, 250.0));
+            double all = 0.0, high = 0.0;
+            const auto start = (int) (sr * 2.0);
+            for (int i = start - 4800; i < start + (int) (sr * 0.03); ++i)
+            {
+                const auto v = b.getSample (0, i);
+                const auto h = hp2.processSingleSampleRaw (hp.processSingleSampleRaw (v));
+                if (i >= start) { all += v * v; high += h * h; }
+            }
+            return (float) (10.0 * std::log10 ((high + 1.0e-12) / (all + 1.0e-12)));
+        };
+
+        const auto plain = render (sub, 0.0f, 0.0f);
+        const auto kicked = render (sub, 1.0f, 0.0f);
+        const auto b0 = attackBrightness (plain), b1 = attackBrightness (kicked);
+        std::cout << "    attack brightness: plain " << String (b0, 1) << " dB, KICK +100 % " << String (b1, 1) << " dB" << std::endl;
+        check (b1 > b0 + 10.0f, "KICK does not add a hit to a plain sub");
+
+        const auto dropped = render (sub, 0.0f, 0.8f);
+        const auto start = (int) (sr * 2.0);
+        int crossings = 0;
+        for (int i = start + 1; i < start + (int) (sr * 0.03); ++i)
+            if (dropped.getSample (0, i - 1) <= 0.0f && dropped.getSample (0, i) > 0.0f)
+                ++crossings;
+        float worst = 0.0f;   // deepest gap of the drop vs the plain note, 5 ms windows over the first 80 ms
+        for (int w = 0; w < 16; ++w)
+        {
+            const auto a = dropped.getMagnitude (0, start + w * 240, 240), b = plain.getMagnitude (0, start + w * 240, 240);
+            worst = jmin (worst, Decibels::gainToDecibels (a / jmax (b, 1.0e-6f)));
+        }
+        std::cout << "    DROP 80 %: " << crossings << " cycles in the first 30 ms (plain sub: 1), deepest gap " << String (worst, 1) << " dB" << std::endl;
+        check (crossings >= 3, "DROP does not fall from above");
+        check (worst > -6.0f, "DROP leaves a gap of " + String (worst, 1) + " dB");
+
+        // kit-like 808: the sub plus a short bright click on every note
+        auto kit = sub;
+        for (int i = 0; i < kit.getNumSamples(); ++i)
+        {
+            const auto t = std::fmod (i / sr, 1.0);
+            const auto click = (float) (0.3 * std::sin (MathConstants<double>::twoPi * 1500.0 * t) * std::exp (-t * 300.0));
+            for (int c = 0; c < 2; ++c)
+                kit.setSample (c, i, kit.getSample (c, i) + click);
+        }
+        const auto k0 = render (kit, 0.0f, 0.0f), kSoft = render (kit, -1.0f, 0.0f);
+        const auto s0 = attackBrightness (k0), s1 = attackBrightness (kSoft);
+        std::cout << "    kit 808 attack brightness: " << String (s0, 1) << " dB, KICK -100 % " << String (s1, 1) << " dB" << std::endl;
+        check (s1 < s0 - 3.0f, "KICK left does not soften the hit");
+    }
+
     std::cout << (failures == 0 ? "ALL TESTS PASSED" : String (failures) + " FAILURES") << std::endl;
     return failures == 0 ? 0 : 1;
 }

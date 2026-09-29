@@ -66,10 +66,13 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 
     // ---- global
     b.choice (ParamIDs::style, "Character", Choices::styles, 0);
-    b.unit (ParamIDs::kill, "Kill", 0.4f);
+    b.unit (ParamIDs::kill, "Kill", 0.0f);
     b.db (ParamIDs::inGain, "Input", -24.0f, 24.0f, 0.0f);
     b.toggle (ParamIDs::bypass, "Bypass", false);
     b.toggle (ParamIDs::autoLevel, "Auto Level", true);
+    b.unit (ParamIDs::clip, "Clip", 0.0f);
+    b.unit (ParamIDs::metal, "Metal", 0.0f);
+    b.unit (ParamIDs::buzz, "Buzz", 0.0f);
 
     // ---- kick
     b.range (ParamIDs::kick, "Kick", NormalisableRange<float> (-1.0f, 1.0f), 0.0f,
@@ -78,7 +81,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
              [] (float v) { return String (roundToInt (v)) + " ms"; });
     b.unit (ParamIDs::kickDrop, "Kick Drop", 0.0f);
     b.unit (ParamIDs::kickBite, "Kick Bite", 0.5f);
-    b.toggle (ParamIDs::kickProtect, "Kick Protect", true);
+    b.toggle (ParamIDs::kickProtect, "Kick Protect", false);
 
     // ---- pitch
     auto semis = [] (float v) { const auto r = std::round (v * 10.0f) / 10.0f; return (r > 0.04f ? "+" : "") + String (std::abs (r) < 0.05f ? 0.0f : r, 1) + " st"; };
@@ -110,7 +113,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 
     // ---- shape
     b.toggle (ParamIDs::shapeOn, "Shape On", true);
-    b.unit (ParamIDs::punch, "Punch", 0.3f);
+    b.unit (ParamIDs::punch, "Punch", 0.0f);
     b.unit (ParamIDs::punchClick, "Click", 0.0f);
     b.range (ParamIDs::length, "Length", NormalisableRange<float> (-1.0f, 1.0f), 0.0f,
              [] (float v) { const auto p = roundToInt (v * 100.0f); return (p > 0 ? "+" : "") + String (p) + " %"; });
@@ -128,7 +131,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     // ---- dirt
     b.toggle (ParamIDs::dirtOn, "Dirt On", true);
     b.choice (ParamIDs::dirtMode, "Dirt Mode", Choices::dirtModes, 0);
-    b.unit (ParamIDs::dirt, "Dirt", 0.3f);
+    b.unit (ParamIDs::dirt, "Dirt", 0.0f);
     b.unit (ParamIDs::dirtMix, "Dirt Mix", 1.0f);
     b.toggle (ParamIDs::autoGain, "Auto Gain", true);
     b.choice (ParamIDs::oversample, "Oversampling", Choices::oversampling, 0);
@@ -146,7 +149,7 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     b.unit (ParamIDs::duckShape, "Duck Shape", 0.5f);
 
     // ---- output
-    b.unit (ParamIDs::clipper, "Clipper", 0.3f);
+    b.unit (ParamIDs::clipper, "Clip Shape", 0.5f);
     b.db (ParamIDs::ceiling, "Ceiling", -12.0f, 0.0f, -0.3f);
     b.range (ParamIDs::monoBelow, "Mono Below", NormalisableRange<float> (0.0f, 300.0f, 1.0f), 100.0f,
              [] (float v) { return v < 1.0f ? String ("Off") : String (roundToInt (v)) + " Hz"; });

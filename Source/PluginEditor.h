@@ -14,7 +14,6 @@ namespace Layout
     inline const juce::Rectangle<int> head       { 470, 180, 540, 668 };   // animated part of the artwork
     inline const juce::Rectangle<int> mouth      { 568, 402, 330, 258 };
     inline const juce::Rectangle<int> jaw        { 552, 650, 368, 162 };   // Resources/jaw.png
-    inline const juce::Rectangle<int> advanced   { 188, 79, 1160, 866 };
 }
 
 //==============================================================================
@@ -64,7 +63,7 @@ public:
     UI::Meter meter;
 
 private:
-    UI::LedToggle autoLevel, phone;
+    UI::LedToggle phone;
     juce::String values[5];
     juce::SharedResourcePointer<Look::Fonts> fonts;
 };
@@ -99,54 +98,6 @@ private:
     juce::OwnedArray<Star> stars;
     UI::FlatButton closeButton { "X" };
     juce::SharedResourcePointer<Look::Fonts> fonts;
-};
-
-//==============================================================================
-// Every parameter, sorted in tabs ("inside the head")
-class AdvancedPage : public juce::Component
-{
-public:
-    explicit AdvancedPage (K808Processor&);
-    void paint (juce::Graphics&) override;
-    void showTab (int index);
-
-    UI::FlatButton closeButton { "CLOSE" };
-
-private:
-    struct Tab
-    {
-        juce::String name;
-        juce::String sectionParam;                 // on/off switch (may be empty)
-        juce::String note;                         // text shown on the tab
-        std::vector<juce::Component*> controls;
-    };
-
-    template <typename T, typename... Args>
-    T& add (int tab, juce::Rectangle<int> bounds, Args&&... args);
-    UI::Knob& knob (int tab, int col, int row, const juce::String& id, const juce::String& label,
-                    const juce::String& tip, bool bipolar = false);
-
-    K808Processor& processor;
-    std::vector<Tab> tabs;
-    juce::OwnedArray<UI::FlatButton> tabButtons;
-    juce::OwnedArray<juce::Component> owned;
-    std::unique_ptr<UI::LedToggle> sectionToggles[7];
-    UI::FlatButton resetButton { "RESET" }, openFolderButton { "OPEN PRESETS FOLDER" };
-    int current = 0;
-    juce::SharedResourcePointer<Look::Fonts> fonts;
-};
-
-class AdvancedOverlay : public juce::Component
-{
-public:
-    explicit AdvancedOverlay (K808Processor&);
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-
-    AdvancedPage page;
-
-private:
-    juce::Image plaster;
 };
 
 //==============================================================================
@@ -189,11 +140,12 @@ private:
 
     HeadView head;
     MasterPanel master;
-    UI::Knob kick, drop, sub, heat, output, mix;
+    UI::Knob clip, dirt, metal, buzz, length, mix;
     UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" },
-                   abButton { "A" }, editButton { "EDIT" };
+                   abButton { "A" };
+    juce::Slider outputKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
     PresetBrowser browser;
-    AdvancedOverlay advanced;
 
     float meterDb[2] { -100.0f, -100.0f };
     float peakHoldDb = -100.0f, clipHoldDb = 0.0f;

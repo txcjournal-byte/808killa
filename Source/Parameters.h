@@ -13,6 +13,11 @@ namespace ParamIDs
     inline constexpr auto bypass     = "bypass";
     inline constexpr auto autoLevel  = "auto_level";
 
+    // main effects on the front panel
+    inline constexpr auto clip       = "clip";
+    inline constexpr auto metal      = "metal";
+    inline constexpr auto buzz       = "buzz";
+
     // KICK: the hit at the start of every note
     inline constexpr auto kick        = "kick";
     inline constexpr auto kickLength  = "kick_length";

@@ -134,8 +134,16 @@ void HeadView::paint (Graphics& g)
     {
         const auto v = scopeOut[(size_t) i];
         const auto a = jmin (1.0f, v) * half;
-        g.setColour (v >= ceiling * 0.97f ? Colour (0xffff7a5c) : Palette::red.withAlpha (0.85f));
-        g.fillRect (wave.getX() + (float) i * colW, cy - a, colW + 0.4f, 2.0f * a);
+        const auto x = wave.getX() + (float) i * colW;
+        g.setColour (Palette::red.withAlpha (0.85f));
+        g.fillRect (x, cy - a, colW + 0.4f, 2.0f * a);
+        if (v >= ceiling * 0.97f)
+        {
+            // clipped: light up the flattened edges only
+            g.setColour (Colour (0xffffa08a));
+            g.fillRect (x, cy - a, colW + 0.4f, 3.0f);
+            g.fillRect (x, cy + a - 3.0f, colW + 0.4f, 3.0f);
+        }
     }
 
     // input as a light outline on top, so you see how much bigger the 808 got
@@ -277,12 +285,9 @@ void HeadView::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& whe
 
 //==============================================================================
 MasterPanel::MasterPanel (K808Processor& p)
-    : autoLevel (p.apvts, ParamIDs::autoLevel, "AUTO LEVEL",
-                 "Brings every 808 to the same level before the processing, so presets sound the same on quiet and loud samples."),
-      phone (p.apvts, ParamIDs::phone, "PHONE", "Listen like on a phone speaker. Monitoring only: switch it off before you export!")
+    : phone (p.apvts, ParamIDs::phone, "PHONE", "Listen like on a phone speaker. Monitoring only: switch it off before you export!")
 {
     addAndMakeVisible (meter);
-    addAndMakeVisible (autoLevel);
     addAndMakeVisible (phone);
     for (auto& v : values)
         v = "--";
@@ -291,8 +296,7 @@ MasterPanel::MasterPanel (K808Processor& p)
 void MasterPanel::resized()
 {
     meter.setBounds (4, 44, getWidth() - 8, 228);
-    autoLevel.setBounds (4, getHeight() - 84, getWidth() - 8, 40);
-    phone.setBounds (4, getHeight() - 42, getWidth() - 8, 40);
+    phone.setBounds (4, getHeight() - 60, getWidth() - 8, 56);
 }
 
 void MasterPanel::setValues (float peakDb, float lufs, float clipDb, const String& note, const String& key)
@@ -516,220 +520,6 @@ void PresetBrowser::mouseDown (const MouseEvent& e)
 }
 
 //==============================================================================
-template <typename T, typename... Args>
-T& AdvancedPage::add (int tab, Rectangle<int> bounds, Args&&... args)
-{
-    auto* c = new T (std::forward<Args> (args)...);
-    owned.add (c);
-    addChildComponent (*c);
-    c->setBounds (bounds);
-    tabs[(size_t) tab].controls.push_back (c);
-    return *c;
-}
-
-UI::Knob& AdvancedPage::knob (int tab, int col, int row, const String& id, const String& label, const String& tip, bool bipolar)
-{
-    auto* k = new UI::Knob (processor.apvts, id, label, tip, bipolar);
-    owned.add (k);
-    addChildComponent (*k);
-    k->setKnobArea ({ 90 + col * 210, 220 + row * 300, 140, 140 }, 38.0f);
-    tabs[(size_t) tab].controls.push_back (k);
-    return *k;
-}
-
-AdvancedPage::AdvancedPage (K808Processor& p) : processor (p)
-{
-    using namespace ParamIDs;
-    auto& s = p.apvts;
-
-    tabs = {
-        { "KICK",     {},      "KICK: right = a hit made from the note itself, left = soften the hit that is there.  "
-                               "DROP: the hit falls from high above into the note.  PROTECT: the hit skips the dirt.", {} },
-        { "PITCH",    pitchOn, "KNOCK = pitch hit at the start of each note.  BEND = trap dive after BEND DELAY.  "
-                               "OCT DOWN / OCT UP = extra octave layers.", {} },
-        { "SHAPE",    shapeOn, {}, {} },
-        { "TONE",     toneOn,  {}, {} },
-        { "DIRT",     dirtOn,  {}, {} },
-        { "OUTPUT",   {},      {}, {} },
-        { "SETTINGS", {},      {}, {} },
-    };
-
-    for (int i = 0; i < (int) tabs.size(); ++i)
-    {
-        auto* b = tabButtons.add (new UI::FlatButton (tabs[(size_t) i].name));
-        b->textHeight = 28.0f;
-        b->onClick = [this, i] { showTab (i); };
-        b->setBounds (12 + i * 140, 14, 134, 52);
-        addAndMakeVisible (b);
-
-        if (tabs[(size_t) i].sectionParam.isNotEmpty())
-        {
-            sectionToggles[i] = std::make_unique<UI::LedToggle> (s, tabs[(size_t) i].sectionParam, "ON", "Switch this whole section on or off.");
-            sectionToggles[i]->setBounds (850, 84, 140, 52);
-            addChildComponent (*sectionToggles[i]);
-        }
-    }
-
-    closeButton.setBounds (1004, 14, 140, 52);
-    closeButton.textHeight = 28.0f;
-    closeButton.setTooltip ("Back to the head");
-    addAndMakeVisible (closeButton);
-
-    resetButton.setBounds (1004, 84, 140, 52);
-    resetButton.textHeight = 29.0f;
-    resetButton.setTooltip ("Reset every control on this tab to its default.");
-    resetButton.onClick = [this]
-    {
-        for (auto& id : sectionParameters (tabs[(size_t) current].name))
-            if (auto* param = processor.apvts.getParameter (id))
-            {
-                param->beginChangeGesture();
-                param->setValueNotifyingHost (param->getDefaultValue());
-                param->endChangeGesture();
-            }
-    };
-    addChildComponent (resetButton);
-
-    // ---- KICK
-    knob (0, 0, 0, kick, "KICK", "Right = a hit made from the note itself, left = soften the hit that is there.", true);
-    knob (0, 1, 0, kickDrop, "DROP", "The hit falls from high above into the note (the spin hit).");
-    knob (0, 2, 0, kickLength, "LENGTH", "How long the hit lasts.");
-    knob (0, 3, 0, kickBite, "BITE", "How much the hit bites (harmonics on the hit only).");
-    add<UI::LedToggle> (0, { 40, 540, 320, 62 }, s, kickProtect, "PROTECT", "The hit skips the dirt, so it stays as punchy as the original.");
-
-    // ---- PITCH
-    knob (1, 0, 0, knock, "KNOCK", "Pitch hit at the start of every note (semitones above the note).");
-    knob (1, 1, 0, knockTime, "KNOCK TIME", "How fast the knock falls back to the note.");
-    knob (1, 2, 0, dive, "BEND", "Trap dive: how far each note drops (semitones).").getSlider().getProperties().set ("fromEnd", true);
-    knob (1, 3, 0, diveTime, "BEND TIME", "How long the dive takes.");
-    knob (1, 4, 0, diveDelay, "BEND DELAY", "How long after the note starts the dive begins.");
-    knob (1, 0, 1, octDown, "OCT DOWN", "Adds a sub one octave below the 808.");
-    knob (1, 1, 1, octUp, "OCT UP", "Adds a gritty octave above the 808.");
-    for (auto* c : tabs[1].controls)
-        if (auto* k = dynamic_cast<UI::Knob*> (c); k != nullptr && k->getY() > 400)
-            k->setTopLeftPosition (k->getX(), k->getY() - 60);
-
-    // ---- SHAPE
-    knob (2, 1, 0, punch, "PUNCH", "Boosts the attack of every note.");
-    knob (2, 2, 0, punchClick, "CLICK", "Adds a short click on top of each hit so it cuts through.");
-    knob (2, 3, 0, length, "TAIL", "Negative = shorter notes (gate). Positive = longer, fuller tails.", true);
-
-    // ---- TONE
-    knob (3, 0, 0, sub, "SUB", "Low shelf around 55 Hz: more or less sub.", true);
-    knob (3, 1, 0, harmonics, "HEAT", "Adds upper harmonics so the 808 is heard on small speakers.");
-    knob (3, 2, 0, tilt, "TILT", "Tilts the tone darker (left) or brighter (right).", true);
-    add<UI::LedToggle> (3, { 40, 540, 280, 60 }, s, filterOn, "FILTER", "Low-pass filter for a muffled, lo-fi 808.");
-    knob (3, 2, 1, cutoff, "CUTOFF", "Low-pass cutoff frequency.");
-    knob (3, 3, 1, resonance, "RESO", "Resonance at the cutoff.");
-    add<UI::ChoiceSelector> (3, { 40, 620, 280, 60 }, s, slope, "Filter steepness.");
-
-    // ---- DIRT
-    add<UI::ChoiceSelector> (4, { 40, 150, 1080, 62 }, s, dirtMode, "Type of distortion.");
-    knob (4, 0, 1, dirt, "DRIVE", "How hard the 808 is pushed into the distortion.");
-    knob (4, 1, 1, dirtMix, "DIRT MIX", "Blend between clean and distorted 808.");
-    knob (4, 2, 1, crushBits, "CRUSH", "Bit reduction for lo-fi grit (24 = off).");
-    knob (4, 3, 1, postFilter, "POST FILTER", "Low-pass after the distortion to tame fizz.");
-    knob (4, 4, 1, cleanFreq, "CLEAN FREQ", "Below this frequency the sub stays clean when CLEAN LOW is on.");
-    for (auto* c : tabs[4].controls)
-        if (auto* k = dynamic_cast<UI::Knob*> (c))
-            k->setTopLeftPosition (k->getX(), k->getY() - 150);
-    add<UI::LedToggle> (4, { 40, 660, 280, 62 }, s, cleanLow, "CLEAN LOW", "Distort only above the crossover: the sub stays clean.");
-    add<UI::LedToggle> (4, { 340, 660, 280, 62 }, s, autoGain, "AUTO GAIN", "Keeps the level steady while you change the drive.");
-    add<UI::ChoiceSelector> (4, { 700, 660, 420, 62 }, s, oversample, "Oversampling quality. Higher = cleaner but more CPU.");
-
-    // ---- OUTPUT
-    knob (5, 0, 0, inGain, "INPUT", "Level going into the plugin.", true);
-    knob (5, 1, 0, clipper, "CLIPPER", "Soft to hard clipping at the ceiling. 0 = off.");
-    knob (5, 2, 0, ceiling, "CEILING", "Maximum output level of the clipper.");
-    knob (5, 3, 0, outGain, "OUTPUT", "Output level.", true);
-    knob (5, 4, 0, mix, "MIX", "Dry / wet mix of the whole plugin.");
-    knob (5, 0, 1, monoBelow, "MONO BELOW", "Makes everything below this frequency mono. 0 = off.");
-    knob (5, 1, 1, width, "WIDTH", "Widens the upper part of the 808. The sub stays mono.");
-    add<UI::LedToggle> (5, { 760, 600, 340, 62 }, s, autoLevel, "AUTO LEVEL",
-                        "Brings every 808 to the same level before the processing.");
-
-    // ---- SETTINGS
-    openFolderButton.setBounds (40, 360, 420, 62);
-    openFolderButton.textHeight = 23.0f;
-    openFolderButton.onClick = [] { PresetManager::userFolder().createDirectory(); PresetManager::userFolder().startAsProcess(); };
-    addChildComponent (openFolderButton);
-    tabs[6].controls.push_back (&openFolderButton);
-    add<UI::ChoiceSelector> (6, { 40, 500, 1080, 62 }, s, ParamIDs::style,
-                             "How the KILL jaw pushes the sound: drive, punch, sub and clipper in different amounts.");
-
-    showTab (0);
-}
-
-void AdvancedPage::showTab (int index)
-{
-    current = jlimit (0, (int) tabs.size() - 1, index);
-
-    for (int i = 0; i < (int) tabs.size(); ++i)
-    {
-        tabButtons[i]->active = i == current;
-        tabButtons[i]->repaint();
-        for (auto* c : tabs[(size_t) i].controls)
-            c->setVisible (i == current);
-        if (sectionToggles[i] != nullptr)
-            sectionToggles[i]->setVisible (i == current);
-    }
-
-    resetButton.setVisible (! sectionParameters (tabs[(size_t) current].name).isEmpty());
-    repaint();
-}
-
-void AdvancedPage::paint (Graphics& g)
-{
-    const auto r = getLocalBounds().toFloat();
-    drawPanel (g, r);
-
-    const auto& tab = tabs[(size_t) current];
-    drawLabel (g, tab.name, { 40.0f, 82.0f, 400.0f, 56.0f }, 52.0f, Palette::ink, Justification::centredLeft);
-
-    if (tab.note.isNotEmpty())
-    {
-        const Rectangle<float> box (40.0f, 660.0f, r.getWidth() - 80.0f, 180.0f);
-        drawPanel (g, box, true);
-        g.setColour (Palette::text);
-        g.setFont (fonts->sans (31.0f));
-        g.drawFittedText (tab.note, box.reduced (26.0f, 14.0f).toNearestInt(), Justification::centredLeft, 4, 1.0f);
-    }
-
-    if (tab.name == "SETTINGS")
-    {
-        const Rectangle<float> box (40.0f, 160.0f, r.getWidth() - 80.0f, 170.0f);
-        drawPanel (g, box, true);
-        g.setColour (Palette::text);
-        g.setFont (fonts->sans (26.0f));
-        const auto text = String (JucePlugin_Name) + "  v" + JucePlugin_VersionString + "\n"
-                          + "by " + JucePlugin_Manufacturer + "\n"
-                          + "Double-click a knob = default value.  Ctrl / Cmd + drag = fine adjustment.";
-        g.drawFittedText (text, box.reduced (20.0f, 14.0f).toNearestInt(), Justification::topLeft, 5);
-        drawLabel (g, "KILL CHARACTER", { 40.0f, 446.0f, 600.0f, 46.0f }, 36.0f, Palette::ink, Justification::centredLeft);
-    }
-}
-
-AdvancedOverlay::AdvancedOverlay (K808Processor& p) : page (p)
-{
-    plaster = ImageCache::getFromMemory (BinaryData::plaster_jpg, BinaryData::plaster_jpgSize);
-    page.setBounds (Layout::advanced);
-    page.closeButton.onClick = [this] { setVisible (false); };
-    addAndMakeVisible (page);
-}
-
-void AdvancedOverlay::paint (Graphics& g)
-{
-    g.fillAll (Colours::black.withAlpha (0.7f));
-    g.drawImage (plaster, Layout::advanced.toFloat());
-}
-
-void AdvancedOverlay::mouseDown (const MouseEvent& e)
-{
-    if (! Layout::advanced.toFloat().contains (e.position))
-        setVisible (false);
-}
-
-//==============================================================================
 Canvas::Canvas()
 {
     background = ImageCache::getFromMemory (BinaryData::background_jpg, BinaryData::background_jpgSize);
@@ -745,14 +535,13 @@ void Canvas::paint (Graphics& g)
 K808Editor::K808Editor (K808Processor& p)
     : AudioProcessorEditor (p), processor (p),
       head (p), master (p),
-      kick   (p.apvts, ParamIDs::kick,      "KICK",   "The hit at the start of every note. Right = kicks like a drum, left = soft, only sub. "
-                                                          "Turns a plain sub into an 808 that kicks. More in EDIT > KICK.", true),
-      drop   (p.apvts, ParamIDs::kickDrop,  "DROP",   "The hit falls from high above into the note (the spin hit of kit 808s)."),
-      sub    (p.apvts, ParamIDs::sub,       "SUB",    "How much sub (low end around 55 Hz) the 808 gets."),
-      heat   (p.apvts, ParamIDs::harmonics, "HEAT",   "Harmonics so the 808 is heard on phones and small speakers."),
-      output (p.apvts, ParamIDs::outGain,   "OUTPUT", "Output level.", true),
+      clip   (p.apvts, ParamIDs::clip,      "CLIP",   "Drives the 808 into the clipper: louder and harder. The preset sets soft or hard clipping."),
+      dirt   (p.apvts, ParamIDs::dirt,      "DIRT",   "Distortion. The type (soft, tape, tube, hard, fold, crush) comes with the preset."),
+      metal  (p.apvts, ParamIDs::metal,     "METAL",  "Metallic, clanging resonance on top of the 808."),
+      buzz   (p.apvts, ParamIDs::buzz,      "BUZZ",   "Buzzing fuzz above the sub: the 808 starts to growl."),
+      length (p.apvts, ParamIDs::length,    "LENGTH", "Left = shorter notes, right = longer tail.", true),
       mix    (p.apvts, ParamIDs::mix,       "MIX",    "Blend the original 808 (left) with the processed one (right)."),
-      browser (p), advanced (p)
+      browser (p)
 {
     setLookAndFeel (&lnf);
     tooltips.setLookAndFeel (&lnf);
@@ -767,7 +556,7 @@ K808Editor::K808Editor (K808Processor& p)
     canvas.addAndMakeVisible (master);
 
     // right panel: 2 x 3 knobs
-    UI::Knob* knobs[] = { &kick, &drop, &sub, &heat, &output, &mix };
+    UI::Knob* knobs[] = { &clip, &dirt, &metal, &buzz, &length, &mix };
     for (int i = 0; i < 6; ++i)
     {
         const auto x = Layout::rightPanel.getX() + (i % 2) * 115 + 20;
@@ -777,7 +566,7 @@ K808Editor::K808Editor (K808Processor& p)
         canvas.addAndMakeVisible (*knobs[i]);
     }
 
-    // bottom bar: < preset > A/B SAVE EDIT
+    // bottom bar: < preset > A/B SAVE OUTPUT
     const auto bar = Layout::bottomBar;
     const auto y = bar.getY() + 10, h = bar.getHeight() - 20;
     prevButton.setBounds (bar.getX() + 8, y, 54, h);
@@ -785,9 +574,19 @@ K808Editor::K808Editor (K808Processor& p)
     nextButton.setBounds (bar.getX() + 398, y, 54, h);
     abButton.setBounds (bar.getX() + 460, y, 58, h);
     saveButton.setBounds (bar.getX() + 522, y, 78, h);
-    editButton.setBounds (bar.getX() + 604, y, 78, h);
+    outputKnob.setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
+    outputKnob.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
+    outputKnob.setRotaryParameters (MathConstants<float>::pi * 1.25f, MathConstants<float>::pi * 2.75f, true);
+    outputKnob.getProperties().set ("bipolar", true);
+    outputKnob.getProperties().set ("dark", true);
+    outputKnob.setPopupDisplayEnabled (true, true, this);
+    outputKnob.setTooltip ("OUTPUT level");
+    outputKnob.setDoubleClickReturnValue (true, 0.0);
+    outputAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, ParamIDs::outGain, outputKnob);
+    outputKnob.setBounds (bar.getX() + 612, y - 4, 66, h + 8);
+    canvas.addAndMakeVisible (outputKnob);
 
-    for (auto* b : { &prevButton, &presetButton, &nextButton, &abButton, &saveButton, &editButton })
+    for (auto* b : { &prevButton, &presetButton, &nextButton, &abButton, &saveButton })
     {
         b->textHeight = 26.0f;
         canvas.addAndMakeVisible (*b);
@@ -799,13 +598,11 @@ K808Editor::K808Editor (K808Processor& p)
     presetButton.setTooltip ("Open the preset table");
     saveButton.setTooltip ("Save the current sound as your own preset");
     abButton.setTooltip ("A/B compare: switch between two versions of your settings");
-    editButton.setTooltip ("Open the skull: every parameter");
 
     prevButton.onClick = [this] { processor.presets.loadNext (-1); refreshPresetLabel(); };
     nextButton.onClick = [this] { processor.presets.loadNext (1); refreshPresetLabel(); };
     presetButton.onClick = [this] { browser.open(); };
     saveButton.onClick = [this] { savePresetAs(); };
-    editButton.onClick = [this] { advanced.setVisible (true); advanced.toFront (false); };
     abButton.onClick = [this]
     {
         processor.presets.toggleAB();
@@ -819,9 +616,6 @@ K808Editor::K808Editor (K808Processor& p)
     browser.onChange = [this] { shownPreset = {}; refreshPresetLabel(); };
     browser.onSaveAs = [this] { savePresetAs(); };
     canvas.addChildComponent (browser);
-
-    advanced.setBounds (0, 0, designWidth, designHeight);
-    canvas.addChildComponent (advanced);
 
     refreshPresetLabel();
 
@@ -950,10 +744,10 @@ void K808Editor::timerCallback()
         peakHoldTicks = 45;
     }
 
-    const auto clip = e.clipDb.exchange (0.0f);
-    if (clip >= clipHoldDb || --clipHoldTicks <= 0)
+    const auto clipNow = e.clipDb.exchange (0.0f);
+    if (clipNow >= clipHoldDb || --clipHoldTicks <= 0)
     {
-        clipHoldDb = clip;
+        clipHoldDb = clipNow;
         clipHoldTicks = 30;
     }
 

@@ -20,6 +20,9 @@ K808Processor::K808Processor()
     raw.style = rawFor (ParamIDs::style);
     raw.kill = rawFor (ParamIDs::kill);
     raw.autoLevel = rawFor (ParamIDs::autoLevel);
+    raw.clip = rawFor (ParamIDs::clip);
+    raw.metal = rawFor (ParamIDs::metal);
+    raw.buzz = rawFor (ParamIDs::buzz);
     raw.kick = rawFor (ParamIDs::kick);
     raw.kickLength = rawFor (ParamIDs::kickLength);
     raw.kickDrop = rawFor (ParamIDs::kickDrop);
@@ -83,8 +86,8 @@ K808Processor::K808Processor()
 
     bypassParam = apvts.getParameter (ParamIDs::bypass);
 
-    // start on the first style (not undoable)
-    presets.load (0);
+    // start clean: every effect at zero, the 808 passes unchanged (not undoable)
+    presets.init();
     undoManager.clearUndoHistory();
 }
 
@@ -134,6 +137,9 @@ EngineParams K808Processor::readParams() const
     p.inGainDb = raw.inGain->load();
     p.bypass = raw.bypass->load() > 0.5f;
     p.autoLevel = raw.autoLevel->load() > 0.5f;
+    p.clip = raw.clip->load();
+    p.metal = raw.metal->load();
+    p.buzz = raw.buzz->load();
 
     p.kick = raw.kick->load();
     p.kickLengthMs = raw.kickLength->load();

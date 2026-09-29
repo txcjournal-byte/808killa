@@ -16,26 +16,16 @@ GitHub ho sestaví sám po každé změně:
    - **808-KILLA-Installer-macOS** – instalátor (.pkg) pro Mac (VST3 + AU)
 3. Ve FL Studiu: *Options → Manage plugins → Find more plugins*.
 
-## Co umí (verze 0.5)
+## Co umí (verze 0.6)
 
-**Hlavní obrazovka:**
-- **Hlava uprostřed:** táhnutím čelisti dolů se nastavuje **KILL**. V puse běží vlna 808: bílá čára = vstup, červená = výstup, světlé špičky = clipper.
-- **MASTER vlevo:** IN/OUT metry, PEAK, LUFS, CLIP (kolik clipper ořezává), ladička (nota + tónina), **AUTO LEVEL** a **PHONE** check.
-- **Vpravo:** PUNCH, SUB, HEAT, TAIL, OUTPUT, MIX.
-- **Dole:** preset `< KATEGORIE / NÁZEV >`, A/B, SAVE, EDIT. Kliknutím na název se otevře tabulka presetů.
+Jedna obrazovka. **Po vložení zní 808 přesně jako originál** a každý knob na ni jen přidává efekt.
 
-**AUTO LEVEL:** každá 808 jde do zpracování ve stejné hlasitosti, takže presety znějí stejně na tichém i hlasitém samplu.
+- **Hlava uprostřed:** táhnutím čelisti dolů = **KILL** (zesílí všechny efekty najednou). V puse běží vlna: bílá čára = vstup, červená = výstup, světlé okraje = clipper.
+- **Vpravo:** **CLIP** (hlasitější a tvrdší, clipper bez aliasingu), **DIRT** (zkreslení, typ podle presetu), **METAL** (kovová rezonance), **BUZZ** (bzučení nad subem), **LENGTH** (kratší / delší 808), **MIX**.
+- **MASTER vlevo:** IN/OUT, PEAK, LUFS, CLIP, nota a tónina, PHONE check.
+- **Dole:** preset `< KATEGORIE / NÁZEV >`, A/B, SAVE, OUTPUT. Kliknutím na název tabulka 96 presetů ve 12 kategoriích.
 
-**Presety:** 96 presetů ve 12 kategoriích (SANCTUS, VELVET COFFIN, BRICKFACE, JAWBREAKER, +1000 AURA, CASSETTE GHOST,
-FURNACE, TOXICUM, MOSH PIT, GRAVE DUST, VOMITORIUM, BRAINROT), hvězdička = FAVOURITES, vlastní presety v USER.
-Vlastní presety se ukládají jako `.808k` do `Documents\808 KILLA\Presets` (Mac: `~/Music/808 KILLA/Presets`).
-
-**EDIT („vnitřek hlavy“):** PITCH (knock, bend, oktávy), SHAPE, TONE, DIRT, OUTPUT, SETTINGS (charakter KILL).
-
-### Stav projektu
-- verze 0.5 = nová grafika, presety a AUTO LEVEL (test)
-- další krok: nový zvuk PUNCH / SUB / clipper (sub podle noty, punch s předstihem, oversamplovaný clipper)
-- příprava na prodej: repo přepnout na soukromé, licence JUCE, podepsání instalátorů, manuál (PDF), texty na e-shop
+Sub pod efekty zůstává čistý, efekty reagují stejně na tichou i hlasitou 808 (AUTO LEVEL uvnitř, hlasitost se vrací zpět).
 
 ## Build na vlastním PC
 

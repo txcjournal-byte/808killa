@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # Single place for the version (shown in the plugin under ADVANCED > SETTINGS)
-project(K808_KILLA VERSION 0.5.0)
+project(K808_KILLA VERSION 0.6.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,7 +49,6 @@ juce_add_plugin(K808
 juce_add_binary_data(K808Assets SOURCES
     Resources/background.jpg
     Resources/jaw.png
-    Resources/plaster.jpg
     Resources/knob_face.png
     Resources/ShareTech-Regular.ttf
     Resources/ShareTechMono-Regular.ttf

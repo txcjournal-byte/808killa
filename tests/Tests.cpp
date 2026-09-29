@@ -141,6 +141,7 @@ int main()
                 for (int lfoShape = 0; lfoShape < 5; ++lfoShape)
                 {
                     proc.presets.init();
+                    setParam (proc, ParamIDs::clip, 0.3f);    // octave layers add level: keep the ceiling in the loop
                     setParam (proc, ParamIDs::knock, 12.0f);
                     setParam (proc, ParamIDs::dive, -24.0f);
                     setParam (proc, ParamIDs::diveDelay, 50.0f);
@@ -474,6 +475,37 @@ int main()
         const auto s0 = attackBrightness (k0), s1 = attackBrightness (kSoft);
         std::cout << "    kit 808 attack brightness: " << String (s0, 1) << " dB, KICK -100 % " << String (s1, 1) << " dB" << std::endl;
         check (s1 < s0 - 3.0f, "KICK left does not soften the hit");
+    }
+
+    // ---------------------------------------------------------------- transparent when inserted
+    std::cout << "[12] a fresh instance passes the 808 unchanged; every effect stays finite and under the ceiling" << std::endl;
+    {
+        const double sr = 48000.0;
+        auto input = makeInput (sr, 2.0);
+        input.copyFrom (1, 0, input, 0, 0, input.getNumSamples());   // mono 808
+        {
+            K808Processor p;
+            enableSidechain (p, false);
+            const auto out = run (p, input, sr, 512);
+            const auto lat = p.getLatencySamples();
+            float maxDiff = 0.0f;
+            for (int i = 4800; i < input.getNumSamples() - lat; ++i)
+                maxDiff = jmax (maxDiff, std::abs (out.getSample (0, i + lat) - input.getSample (0, i)));
+            const auto db = Decibels::gainToDecibels (maxDiff / input.getMagnitude (0, 0, input.getNumSamples()), -200.0f);
+            std::cout << "    fresh instance vs input: " << String (db, 1) << " dB" << std::endl;
+            check (db < -50.0f, "a fresh instance changes the 808 (" + String (db, 1) + " dB)");
+        }
+        for (auto* id : { ParamIDs::clip, ParamIDs::dirt, ParamIDs::metal, ParamIDs::buzz, ParamIDs::kill })
+        {
+            K808Processor p;
+            enableSidechain (p, false);
+            setParam (p, id, 1.0f);
+            const auto out = run (p, input, sr, 512);
+            const auto peak = out.getMagnitude (0, 0, out.getNumSamples());
+            std::cout << "    " << id << " 100 %: peak " << String (Decibels::gainToDecibels (peak), 1) << " dB" << std::endl;
+            check (allFinite (out), String (id) + ": NaN");
+            check (peak < 4.0f, String (id) + ": runaway level");
+        }
     }
 
     std::cout << (failures == 0 ? "ALL TESTS PASSED" : String (failures) + " FAILURES") << std::endl;

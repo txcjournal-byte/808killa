@@ -18,6 +18,9 @@ struct EngineParams
     float kick = 0.0f, kickLengthMs = 35.0f, kickDrop = 0.0f, kickBite = 0.5f;
     bool kickProtect = false;   // keep DIRT off the hit
 
+    // main effects (0 = the 808 passes unchanged)
+    float clip = 0.0f, metal = 0.0f, buzz = 0.0f;
+
     bool pitchOn = true;
     float knock = 0.0f, knockTimeMs = 30.0f, dive = 0.0f, diveTimeMs = 250.0f, diveDelayMs = 150.0f;
     float octDown = 0.0f, octUp = 0.0f;
@@ -103,7 +106,9 @@ private:
         std::vector<float> pitchBuf;
         int pitchWrite = 0;
         Biquad octLow, octSub, octUpHigh;
-        Biquad kickHp, kickLp;
+        Biquad kickHp, kickLp, metalHp, metalLpA, metalLpB, buzzHp, buzzLp, dirtLow1, dirtLow2;
+        DelayLine metalDelayA, metalDelayB;
+        float metalA = 0.0f, metalB = 0.0f, env = 0.0f, clipPrev = 0.0f;
         DelayLine protectDelay;
         float octFlip = 1.0f;
         bool octWasNegative = false;
@@ -115,6 +120,7 @@ private:
     float readPitch (Channel&, float delay) const noexcept;
     float lfoValue (int shape, float phase) const noexcept;
     float shape (int mode, float x) const noexcept;
+    static float clipAdaa (float x, float prev, float hard) noexcept;
 
     double fs = 44100.0;
     int maxBlock = 512;
@@ -128,8 +134,8 @@ private:
     Biquad phoneHp1, phoneHp2, phonePeak, phoneLp;
 
     juce::AudioBuffer<float> dryBuf, lowBuf, preBuf;
-    std::vector<float> driveGain, wobbleGain, wobbleCutoff, chopGain, protectEnv;
-    DelayLine protectEnvDelay;
+    std::vector<float> levelGainBuf, driveAmount, driveGain, wobbleGain, wobbleCutoff, chopGain, protectEnv;
+    DelayLine protectEnvDelay, levelDelay;
     Biquad f0Lp;
     float f0Last = 0.0f, f0Est = 45.0f;     // pitch of the 808 for the KICK DROP layer
     int f0Count = 0;
@@ -160,6 +166,7 @@ private:
     float rmsPre = 0.0f, rmsPost = 0.0f, agGain = 1.0f;
     float levelNote = 0.0f, levelMeasurePeak = 0.0f, levelGain = 1.0f;   // auto level (0 = no note measured yet)
     int levelMeasureLeft = 0;
+    float dcMix = 0.0f;
     double preparedRate = 0.0;
     int scopeCount = 0, scopeLength = 240;
     float scopeInMax = 0.0f, scopeOutMax = 0.0f;

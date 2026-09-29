@@ -25,6 +25,31 @@ KillMapping killMappingFor (int style) noexcept
     return table[jlimit (0, (int) std::size (table) - 1, style)];
 }
 
+namespace
+{
+    // soft (tanh) to hard clip, and its antiderivative
+    inline double clipShape (double x, double hard) noexcept
+    {
+        return (1.0 - hard) * std::tanh (x) + hard * jlimit (-1.0, 1.0, x);
+    }
+    inline double clipIntegral (double x, double hard) noexcept
+    {
+        const auto ax = std::abs (x);
+        const auto soft = ax > 20.0 ? ax - std::log (2.0) : std::log (std::cosh (x));
+        const auto hardPart = ax <= 1.0 ? 0.5 * x * x : ax - 0.5;
+        return (1.0 - hard) * soft + hard * hardPart;
+    }
+}
+
+// first-order antiderivative anti-aliased clipper
+float Engine::clipAdaa (float x, float prev, float hard) noexcept
+{
+    const auto dx = (double) x - (double) prev;
+    if (std::abs (dx) < 1.0e-5)
+        return (float) clipShape (0.5 * ((double) x + (double) prev), hard);
+    return (float) ((clipIntegral (x, hard) - clipIntegral (prev, hard)) / dx);
+}
+
 double Engine::tailSeconds (const EngineParams& p) noexcept
 {
     return 0.25 + (p.length > 0.0f ? 1.0 : 0.0) + (p.pitchOn && p.dive < 0.0f ? 1.0 : 0.0);
@@ -55,6 +80,8 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
         c.lowDelay.prepare (osMaxLatency);
         c.osBypass.prepare (osMaxLatency);
         c.protectDelay.prepare (osMaxLatency);
+        c.metalDelayA.prepare ((int) (fs * 0.01));
+        c.metalDelayB.prepare ((int) (fs * 0.01));
         c.dryDelay.prepare (latency);
         c.padDelay.prepare (osMaxLatency);
         c.pitchBuf.assign ((size_t) (fs * 4.0) + (size_t) lookahead + 8, 0.0f);
@@ -71,6 +98,9 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
     wobbleCutoff.assign ((size_t) maxBlock, 20000.0f);
     chopGain.assign ((size_t) maxBlock, 1.0f);
     protectEnv.assign ((size_t) maxBlock, 0.0f);
+    driveAmount.assign ((size_t) maxBlock, 0.0f);
+    levelGainBuf.assign ((size_t) maxBlock, 1.0f);
+    levelDelay.prepare (osMaxLatency);
     protectEnvDelay.prepare (osMaxLatency);
     widthDelay.prepare ((int) (fs * 0.02));
     widthHp1.setHighPass (fs, 150.0, 0.707);
@@ -105,6 +135,11 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
         c.harmHigh.setHighPass (fs, 150.0, 0.707);
         c.clickHigh.setHighPass (fs, 1800.0, 0.707);
         c.kickHp.setHighPass (fs, 120.0, 0.707);
+        c.metalHp.setHighPass (fs, 300.0, 0.707);
+        c.metalLpA.setLowPass (fs, 5000.0, 0.707);
+        c.metalLpB.setLowPass (fs, 4200.0, 0.707);
+        c.buzzHp.setHighPass (fs, 150.0, 0.707);
+        c.buzzLp.setLowPass (fs, 5000.0, 0.707);
         c.kickLp.setLowPass (fs, 140.0, 0.707);
         c.kw1.setHighShelf (fs, 1681.974450955533, 0.7071752369554196, 3.999843853973347);
         c.kw2.setHighPass (fs, 38.13547087602444, 0.5003270373238773);
@@ -123,11 +158,15 @@ void Engine::reset()
     {
         for (auto* b : { &c.hp20, &c.sub, &c.tiltLow, &c.tiltHigh, &c.filt1, &c.filt2, &c.harmBand,
                          &c.harmHigh, &c.clickHigh, &c.post, &c.kw1, &c.kw2,
-                         &c.kickHp, &c.kickLp })
+                         &c.kickHp, &c.kickLp,
+                         &c.metalHp, &c.metalLpA, &c.metalLpB, &c.buzzHp, &c.buzzLp, &c.dirtLow1, &c.dirtLow2 })
             b->reset();
         c.lowDelay.reset();
         c.osBypass.reset();
         c.protectDelay.reset();
+        c.metalDelayA.reset();
+        c.metalDelayB.reset();
+        c.metalA = c.metalB = c.env = c.clipPrev = 0.0f;
         c.dryDelay.reset();
         c.padDelay.reset();
         c.dcX = c.dcY = c.hold = 0.0f;
@@ -153,6 +192,7 @@ void Engine::reset()
     wobbleFilter.reset();
     widthDelay.reset();
     protectEnvDelay.reset();
+    levelDelay.reset();
     for (auto* b : { &widthHp1, &widthHp2, &tunerLp1, &tunerLp2 })
         b->reset();
     chopBeat = 0.0;
@@ -237,7 +277,14 @@ void Engine::updateFilters (const EngineParams& p, float subDb)
     }
 
     if (changed (cClean, p.cleanFreq, 0.5f))
+    {
         cleanSplit.setCutoffFrequency (p.cleanFreq);
+        for (auto& c : ch)
+        {
+            c.dirtLow1.setLowPass (fs, p.cleanFreq, 0.7071);   // two Butterworth = the same LR4 low-pass as the split
+            c.dirtLow2.setLowPass (fs, p.cleanFreq, 0.7071);
+        }
+    }
     if (changed (cMono, jmax (20.0f, p.monoBelow), 0.5f))
         monoSplit.setCutoffFrequency (jmax (20.0f, p.monoBelow));
 }
@@ -291,11 +338,14 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     numCh = jlimit (1, 2, numCh);
 
     // ---- effective values (KILL macro on top of the style)
-    const auto km = killMappingFor (p.style);
-    const auto effDrive = jlimit (0.0f, 1.5f, p.drive + p.kill * km.drive);
-    const auto effPunch = jlimit (0.0f, 1.0f, p.punch + p.kill * km.punch);
-    const auto effSubDb = jlimit (-6.0f, 15.0f, p.subDb + p.kill * km.subDb);
-    const auto effClip  = jlimit (0.0f, 1.0f, p.clipper + p.kill * km.clipper);
+    // KILL (the jaw) pushes everything on top of the knobs
+    const auto effDrive = jlimit (0.0f, 1.0f, p.drive + 0.5f * p.kill);
+    const auto effPunch = p.punch;
+    const auto effSubDb = p.subDb;
+    const auto effClip  = jlimit (0.0f, 1.0f, p.clip + 0.6f * p.kill);   // drive into the clipper
+    const auto effMetal = jlimit (0.0f, 1.0f, p.metal * (1.0f + p.kill));
+    const auto effBuzz  = jlimit (0.0f, 1.0f, p.buzz * (1.0f + p.kill));
+    const auto dirtActive = p.dirtOn && effDrive > 0.0005f;
 
     updateFilters (p, p.toneOn ? effSubDb : 0.0f);
 
@@ -362,6 +412,11 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     const auto agCoef = 1.0f - onePole (0.05, fs);
     const auto scA = onePole (0.001, fs), scR = onePole (p.duckReleaseMs * 0.001, fs);
     const auto ceilingGain = Decibels::decibelsToGain (p.ceilingDb);
+    const auto clipDrive = Decibels::decibelsToGain (24.0f * effClip);
+    const auto dcCoef = 1.0f - onePole (0.02, fs);
+    const auto envA = onePole (0.001, fs), envR = onePole (0.06, fs);
+    const auto metalFb = 0.55f + 0.35f * effMetal;
+    const auto metalDelayA = jmax (1, (int) (fs * 0.00137)), metalDelayB = jmax (1, (int) (fs * 0.00221));
     const auto crush = p.crushBits < 23.5f;
     const auto crushSteps = std::pow (2.0f, p.crushBits - 1.0f);
     const auto holdFactor = p.dirtMode == bitcrush ? 1 + roundToInt (effDrive * 12.0f) : 1;
@@ -482,6 +537,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 const auto target = (p.autoLevel && levelNote > 0.0f) ? jlimit (0.25f, 8.0f, 0.5f / levelNote) : 1.0f;
                 levelGain += (target - levelGain) * levelCoef;
             }
+            levelGainBuf[(size_t) i] = levelGain;
 
             if (onsetCountdown >= 0 && --onsetCountdown < 0)
             {
@@ -681,7 +737,11 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             }
             lengthGain += (lengthTarget - lengthGain) * (lengthTarget > lengthGain ? lenOpen : lenClose);
 
-            driveGain[(size_t) i] = Decibels::decibelsToGain (drive.getNextValue() * maxDriveDb);
+            {
+                const auto d = drive.getNextValue();
+                driveGain[(size_t) i] = Decibels::decibelsToGain (d * maxDriveDb);
+                driveAmount[(size_t) i] = jmin (1.0f, d * 4.0f);   // DIRT 0 = clean, it fades in over the first quarter
+            }
 
             for (int c = 0; c < numCh; ++c)
             {
@@ -730,21 +790,17 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
 
                 // complementary split (high = input - low): low + high is exactly the input again,
                 // so the split alone never changes the waveform
+                // the whole note goes into the dirt (so the fundamental makes the grit); with CLEAN LOW the
+                // low band of the result is replaced by the clean low band afterwards. low (clean) + high (dirty)
+                // is exactly the input again when there is no dirt.
                 float low = 0.0f, high = 0.0f;
                 cleanSplit.processSample (c, v, low, high);
-                if (p.cleanLow && p.dirtOn)
-                {
-                    high = v - low;
-                }
-                else
-                {
+                if (! (p.cleanLow && dirtActive))
                     low = 0.0f;
-                    high = v;
-                }
 
                 lowBuf.setSample (c, i, st.lowDelay.process (low, osMaxLatency));
-                preBuf.setSample (c, i, high);
-                data[c][i] = high;
+                preBuf.setSample (c, i, v);
+                data[c][i] = v;
             }
         }
 
@@ -753,7 +809,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
             dsp::AudioBlock<float> block (data, (size_t) numCh, (size_t) n);
             auto& os = *oversamplers[(size_t) osIndex];
 
-            if (! p.dirtOn)
+            if (! dirtActive)
             {
                 // nothing to distort: skip the oversampling filters (their phase would bend the attack),
                 // an integer delay keeps the timing identical
@@ -773,8 +829,9 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                     for (int j = 0; j < upN; ++j)
                     {
                         const auto dry = d[j];
-                        const auto wet = shape (p.dirtMode, dry * driveGain[(size_t) (j / factor)]);
-                        d[j] = dry + (wet - dry) * p.dirtMix;
+                        const auto k = (size_t) (j / factor);
+                        const auto wet = shape (p.dirtMode, dry * driveGain[k]);
+                        d[j] = dry + (wet - dry) * p.dirtMix * driveAmount[k];
                     }
                 }
 
@@ -798,6 +855,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 scEnv = follow (scEnv, s, scA, scR);
             }
             const auto duckGain = useDuck ? 1.0f - p.duck * std::pow (jlimit (0.0f, 1.0f, scEnv * 3.0f), duckExp) : 1.0f;
+            dcMix += ((dirtActive ? 1.0f : 0.0f) - dcMix) * dcCoef;
             const auto protectNow = protectEnvDelay.process (protectEnv[(size_t) i], osMaxLatency);
             // clean hit at the level of the dirty signal around it, so PROTECT never makes the hit quieter
             const auto protectMatch = jlimit (0.25f, 8.0f, std::sqrt ((rmsPost + 1.0e-9f) / (rmsPre + 1.0e-9f)));
@@ -812,7 +870,7 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 if (protectNow > 0.0f)
                     v += (clean * protectMatch - v) * protectNow;
 
-                if (p.dirtOn)
+                if (dirtActive)
                 {
                     if (holdFactor > 1)
                     {
@@ -824,15 +882,19 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                     v = st.post.process (v);
                 }
 
-                // DC blocker
+                // DC blocker, only while there is dirt to make DC (it would bend the low end of a clean 808)
                 const auto dc = v - st.dcX + 0.9995f * st.dcY;
                 st.dcX = v;
                 st.dcY = dc;
-                v = dc;
+                v += (dc - v) * dcMix;
 
                 const auto pre = preBuf.getSample (c, i);
                 preSq += pre * pre;
                 postSq += v * v;
+
+                // CLEAN LOW: drop the low band of the dirty signal, the clean low band is added below
+                if (p.cleanLow && dirtActive)
+                    v -= st.dirtLow2.process (st.dirtLow1.process (v));
                 y[c] = v;
             }
 
@@ -842,12 +904,14 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 rmsPre = preSq + (rmsPre - preSq) * rmsCoef;
                 rmsPost = postSq + (rmsPost - postSq) * rmsCoef;
             }
-            const auto agTarget = (p.autoGain && p.dirtOn && rmsPost > 1.0e-9f)
+            const auto agTarget = (p.autoGain && dirtActive && rmsPost > 1.0e-9f)
                                       ? jlimit (0.1f, 4.0f, std::sqrt ((rmsPre + 1.0e-9f) / (rmsPost + 1.0e-9f)))
                                       : 1.0f;
             agGain += (agTarget - agGain) * agCoef;
 
             const auto og = outGain.getNextValue();
+            // the exact gain this sample got at the read head, lined up with the dirt path
+            const auto levelMakeup = 1.0f / jmax (0.125f, levelDelay.process (levelGainBuf[(size_t) i], osMaxLatency));
             const auto m = mixAmt.getNextValue();
             const auto b = bypassAmt.getNextValue();
 
@@ -859,7 +923,33 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 auto v = (y[c] * agGain + lowBuf.getSample (c, i)) * duckGain * wobbleGain[(size_t) i] * chopGain[(size_t) i];
                 if (wobbleFilterOn)
                     v = wobbleFilter.processSample (c, v);
-                y[c] = v;
+
+                auto& st = ch[(size_t) c];
+                st.env = follow (st.env, std::abs (v), envA, envR);
+
+                // METAL: two inharmonic resonators (like a struck plate) fed by the grit of the note
+                if (effMetal > 0.001f)
+                {
+                    const auto src = st.metalHp.process (std::tanh (v * 14.0f)) * st.env * 2.0f;
+                    const auto a = src + metalFb * st.metalLpA.process (st.metalA);
+                    const auto bb = src - metalFb * st.metalLpB.process (st.metalB);
+                    st.metalA = st.metalDelayA.process (a, metalDelayA);
+                    st.metalB = st.metalDelayB.process (bb, metalDelayB);
+                    v += (a + bb) * (1.0f - metalFb) * effMetal * 3.0f;
+                }
+
+                // BUZZ: a square-wave fuzz and an octave above, only the upper band, following the note
+                if (effBuzz > 0.001f)
+                {
+                    const auto square = std::tanh (v * 25.0f) * st.env;
+                    const auto octave = (std::abs (v) - 0.64f * st.env) * 2.0f;
+                    const auto bz = st.buzzLp.process (st.buzzHp.process (0.8f * square + 0.6f * octave));
+                    v += bz * effBuzz * 2.5f;
+                }
+
+                // auto level back to the level that came in: the effects above react the same on every
+                // sample, but loudness is only changed by CLIP (and OUTPUT)
+                y[c] = v * levelMakeup;
             }
 
             // mono below: only the low part of the side signal is removed, the mid is untouched
@@ -892,11 +982,19 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 auto v = y[c];
                 if (effClip > 0.001f)
                 {
-                    const auto before = std::abs (v);
-                    const auto u = v * (1.0f + effClip) / ceilingGain;
-                    v = ceilingGain * ((1.0f - effClip) * std::tanh (u) + effClip * jlimit (-1.0f, 1.0f, u));
+                    // CLIP: drive into the ceiling (up to +24 dB). Soft to hard by the preset's clip shape.
+                    // First-order antiderivative anti-aliasing: clean clipping without oversampling latency.
+                    auto& st = ch[(size_t) c];
+                    const auto u = v * clipDrive / ceilingGain;
+                    const auto before = std::abs (v * clipDrive);
+                    v = ceilingGain * clipAdaa (u, st.clipPrev, p.clipper);
+                    st.clipPrev = u;
                     if (before > 1.0e-3f && std::abs (v) > 1.0e-6f)
                         clipRatio = jmax (clipRatio, before / std::abs (v));
+                }
+                else
+                {
+                    ch[(size_t) c].clipPrev = v / ceilingGain;
                 }
 
                 const auto dry = ch[(size_t) c].dryDelay.process (dryBuf.getSample (c, i), latency);

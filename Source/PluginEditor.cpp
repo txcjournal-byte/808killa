@@ -6,50 +6,6 @@ using namespace Look;
 
 namespace
 {
-    // YIN pitch detection on the decimated tuner feed. Returns 0 when no clear pitch.
-    float detectPitch (const float* x, int n, double rate)
-    {
-        const int maxTau = jmin (n / 2, (int) (rate / 25.0));
-        const int minTau = jmax (2, (int) (rate / 300.0));
-        const int w = n - maxTau;
-        if (w < 32) return 0.0f;
-
-        std::vector<float> d ((size_t) maxTau + 1, 0.0f);
-        for (int tau = 1; tau <= maxTau; ++tau)
-        {
-            float sum = 0.0f;
-            for (int i = 0; i < w; ++i)
-            {
-                const auto diff = x[i] - x[i + tau];
-                sum += diff * diff;
-            }
-            d[(size_t) tau] = sum;
-        }
-
-        float running = 0.0f;
-        std::vector<float> cm ((size_t) maxTau + 1, 1.0f);
-        for (int tau = 1; tau <= maxTau; ++tau)
-        {
-            running += d[(size_t) tau];
-            cm[(size_t) tau] = running > 0.0f ? d[(size_t) tau] * (float) tau / running : 1.0f;
-        }
-
-        for (int tau = minTau; tau < maxTau; ++tau)
-        {
-            if (cm[(size_t) tau] < 0.15f)
-            {
-                while (tau + 1 < maxTau && cm[(size_t) tau + 1] < cm[(size_t) tau]) ++tau;
-                const auto a = cm[(size_t) tau - 1], b = cm[(size_t) tau], c = cm[(size_t) tau + 1];
-                const auto denom = a - 2.0f * b + c;
-                const auto shift = std::abs (denom) > 1.0e-9f ? 0.5f * (a - c) / denom : 0.0f;
-                return (float) (rate / ((float) tau + jlimit (-0.5f, 0.5f, shift)));
-            }
-        }
-        return 0.0f;
-    }
-
-    const char* noteNames[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-
     const char* describeCategory (const String& category)
     {
         static const std::map<String, const char*> text = {
@@ -85,15 +41,15 @@ namespace
 //==============================================================================
 HeadView::HeadView (K808Processor& p)
     : processor (p),
-      killParam (*p.apvts.getParameter (ParamIDs::kill)),
-      killAttachment (killParam, [this] (float v) { kill = v; repaint(); }, &p.undoManager),
+      killParam (*p.apvts.getParameter (ParamIDs::driveAmount)),
+      killAttachment (killParam, [this] (float v) { kill = v * 0.01f; repaint(); }, &p.undoManager),
       scopeIn (300, 0.0f), scopeOut (300, 0.0f)
 {
     background = ImageCache::getFromMemory (BinaryData::background_jpg, BinaryData::background_jpgSize);
     jawImage = ImageCache::getFromMemory (BinaryData::jaw_png, BinaryData::jaw_pngSize);
     setOpaque (true);
-    setTooltip ("Drag the jaw down = KILL: more of everything the preset does. "
-                "Double-click = default, Ctrl / Cmd + drag = fine. The mouth shows your 808: grey = in, red = out.");
+    setTooltip ("Drag the jaw down = DRIVE: how hard the mid / high band hits the saturator (the sub stays clean). "
+                "Double-click = default, Ctrl / Cmd + drag = fine. The mouth shows your 808: white line = in, red = out.");
     killAttachment.sendInitialUpdate();
 }
 
@@ -124,9 +80,9 @@ void HeadView::paint (Graphics& g)
     g.fillRoundedRectangle (inner, 10.0f);
 
     // waveform: input grey behind, output red in front, clipped parts bright
-    const auto wave = inner.reduced (12.0f, 8.0f).withTrimmedTop (36.0f);
+    const auto wave = inner.reduced (12.0f, 8.0f).withTrimmedTop (36.0f).withTrimmedBottom (22.0f);
     const auto cy = wave.getCentreY(), half = wave.getHeight() * 0.5f;
-    const auto ceiling = Decibels::decibelsToGain (processor.apvts.getRawParameterValue (ParamIDs::ceiling)->load());
+    const auto ceiling = Decibels::decibelsToGain (processor.apvts.getRawParameterValue (ParamIDs::clipCeiling)->load());
     const auto n = (int) scopeOut.size();
     const auto colW = wave.getWidth() / (float) n;
 
@@ -175,10 +131,16 @@ void HeadView::paint (Graphics& g)
     }
     else
     {
+        const auto mode = Choices::satModes[jlimit (0, 2, (int) processor.apvts.getRawParameterValue (ParamIDs::satMode)->load())];
         g.setColour (Palette::text);
         g.setFont (fonts->bold (32.0f));
-        g.drawText ("KILL " + String (roundToInt (kill * 100.0f)) + "%", top, Justification::centred, false);
+        g.drawText ("DRIVE " + String (roundToInt (kill * 100.0f)) + "%  " + mode.toUpperCase(), top, Justification::centred, false);
     }
+
+    // bottom of the mouth: output peak, clipper and ducking reduction
+    g.setColour (Palette::textDim);
+    g.setFont (fonts->mono (19.0f));
+    g.drawText (status, inner.withTrimmedTop (inner.getHeight() - 26.0f).withTrimmedBottom (4.0f), Justification::centred, false);
 
     // jaw
     const auto jaw = (Layout::jaw.toFloat() - o).translated (0.0f, drop);
@@ -207,8 +169,9 @@ void HeadView::paint (Graphics& g)
     }
 }
 
-void HeadView::tick (float outLevel, bool phone)
+void HeadView::tick (float outLevel, bool phone, const String& statusText)
 {
+    status = statusText;
     // the jaw "bites" on every new hit: level above its own slow average
     const auto hit = jlimit (0.0f, 1.0f, (outLevel - slowLevel) * 2.5f);
     slowLevel += (outLevel - slowLevel) * 0.12f;
@@ -260,7 +223,7 @@ void HeadView::mouseDrag (const MouseEvent& e)
         return;
     const auto fine = e.mods.isCtrlDown() || e.mods.isCommandDown();
     const auto v = jlimit (0.0f, 1.0f, dragStart + (float) e.getDistanceFromDragStartY() / (fine ? 1200.0f : 240.0f));
-    killAttachment.setValueAsPartOfGesture (v);
+    killAttachment.setValueAsPartOfGesture (v * 100.0f);
 }
 
 void HeadView::mouseUp (const MouseEvent&)
@@ -280,61 +243,40 @@ void HeadView::mouseDoubleClick (const MouseEvent& e)
 void HeadView::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& wheel)
 {
     if (hitsJaw (e.position))
-        killAttachment.setValueAsCompleteGesture (jlimit (0.0f, 1.0f, kill + wheel.deltaY * 0.15f));
+        killAttachment.setValueAsCompleteGesture (100.0f * jlimit (0.0f, 1.0f, kill + wheel.deltaY * 0.15f));
 }
 
 //==============================================================================
-MasterPanel::MasterPanel (K808Processor& p)
-    : phone (p.apvts, ParamIDs::phone, "PHONE", "Listen like on a phone speaker. Monitoring only: switch it off before you export!")
+SubPanel::SubPanel (K808Processor& p)
+    : input     (p.apvts, ParamIDs::inputGain,     "INPUT",  "Input gain into the plugin.", true),
+      crossover (p.apvts, ParamIDs::crossoverFreq, "XOVER",  "Where the sub band ends and the mid / high band starts (80 - 200 Hz)."),
+      focus     (p.apvts, ParamIDs::midFocus,      "FOCUS",  "Presence boost at 250 - 900 Hz before the drive: the 808 is heard on small speakers."),
+      subMono   (p.apvts, ParamIDs::subMono,       "MONO",   "The sub band summed to mono."),
+      subCut    (p.apvts, ParamIDs::subCut,        "28 HZ",  "Removes rumble below 28 Hz for more headroom."),
+      phase     (p.apvts, ParamIDs::phaseInvert,   "PHASE",  "Inverts the polarity (when the 808 fights the kick)."),
+      phone     (p.apvts, ParamIDs::phonePreview,  "PHONE",  "Listen like on a phone speaker (400 Hz - 3.5 kHz). Switch it off before you export!")
 {
-    addAndMakeVisible (meter);
-    addAndMakeVisible (phone);
-    for (auto& v : values)
-        v = "--";
+    UI::Knob* knobs[] = { &input, &crossover, &focus };
+    for (int i = 0; i < 3; ++i)
+    {
+        knobs[i]->setKnobArea ({ 69, 66 + i * 118, 60, 60 }, 22.0f);
+        knobs[i]->setDark();
+        addAndMakeVisible (*knobs[i]);
+    }
+    UI::LedToggle* toggles[] = { &subMono, &subCut, &phase, &phone };
+    for (int i = 0; i < 4; ++i)
+    {
+        toggles[i]->big = true;
+        toggles[i]->setBounds (6 + (i % 2) * 94, 404 + (i / 2) * 56, 92, 54);
+        addAndMakeVisible (*toggles[i]);
+    }
 }
 
-void MasterPanel::resized()
-{
-    meter.setBounds (4, 44, getWidth() - 8, 228);
-    phone.setBounds (4, getHeight() - 60, getWidth() - 8, 56);
-}
-
-void MasterPanel::setValues (float peakDb, float lufs, float clipDb, const String& note, const String& key)
-{
-    const String next[5] = {
-        peakDb <= -60.0f ? String ("-inf") : String (peakDb, 1),
-        lufs <= -70.0f ? String ("--") : String (lufs, 1),
-        clipDb < 0.05f ? String ("0.0") : "-" + String (clipDb, 1),
-        note.isEmpty() ? String ("--") : note,
-        key
-    };
-
-    bool changed = false;
-    for (int i = 0; i < 5; ++i)
-        if (values[i] != next[i]) { values[i] = next[i]; changed = true; }
-    if (changed)
-        repaint (0, 272, getWidth(), 160);
-}
-
-void MasterPanel::paint (Graphics& g)
+void SubPanel::paint (Graphics& g)
 {
     g.setColour (Palette::text);
-    g.setFont (fonts->bold (32.0f));
-    g.drawText ("MASTER", Rectangle<int> (0, 4, getWidth(), 38), Justification::centred, false);
-
-    static const char* labels[] = { "PEAK", "LUFS", "CLIP", "NOTE", "KEY" };
-    for (int i = 0; i < 5; ++i)
-    {
-        const Rectangle<float> row (6.0f, 276.0f + (float) i * 31.0f, (float) getWidth() - 12.0f, 29.0f);
-        g.setColour (Colour (0xff050505));
-        g.fillRect (row);
-        g.setColour (Palette::textDim);
-        g.setFont (fonts->sans (20.0f));
-        g.drawText (labels[i], row.withTrimmedLeft (8.0f), Justification::centredLeft, false);
-        g.setColour (i == 2 && values[i] != "0.0" ? Palette::redBright : Palette::text);
-        g.setFont (fonts->mono (22.0f));
-        g.drawText (values[i], row.withTrimmedRight (8.0f), Justification::centredRight, false);
-    }
+    g.setFont (fonts->bold (28.0f));
+    g.drawText ("SUB / INPUT", Rectangle<int> (0, 2, getWidth(), 30), Justification::centred, false);
 }
 
 //==============================================================================
@@ -534,13 +476,14 @@ void Canvas::paint (Graphics& g)
 //==============================================================================
 K808Editor::K808Editor (K808Processor& p)
     : AudioProcessorEditor (p), processor (p),
-      head (p), master (p),
-      clip   (p.apvts, ParamIDs::clip,      "CLIP",   "Drives the 808 into the clipper: louder and harder. The preset sets soft or hard clipping."),
-      dirt   (p.apvts, ParamIDs::dirt,      "DIRT",   "Distortion. The type (soft, tape, tube, hard, fold, crush) comes with the preset."),
-      metal  (p.apvts, ParamIDs::metal,     "METAL",  "Metallic, clanging resonance on top of the 808."),
-      buzz   (p.apvts, ParamIDs::buzz,      "BUZZ",   "Buzzing fuzz above the sub: the 808 starts to growl."),
-      length (p.apvts, ParamIDs::length,    "LENGTH", "Left = shorter notes, right = longer tail.", true),
-      mix    (p.apvts, ParamIDs::mix,       "MIX",    "Blend the original 808 (left) with the processed one (right)."),
+      head (p), subPanel (p),
+      duck    (p.apvts, ParamIDs::duckDepth,   "DUCK",    "Ducks only the sub under the kick. Route the kick to the sidechain input."),
+      release (p.apvts, ParamIDs::duckRelease, "RELEASE", "How fast the sub comes back after the kick."),
+      clip    (p.apvts, ParamIDs::clipDrive,   "CLIP",    "Drive into the 4x oversampled soft clipper: louder and harder."),
+      knee    (p.apvts, ParamIDs::clipKnee,    "KNEE",    "Where the clipper starts to bend: low = softer and earlier, high = harder."),
+      ceiling (p.apvts, ParamIDs::clipCeiling, "CEILING", "Maximum level of the clipper."),
+      output  (p.apvts, ParamIDs::outputGain,  "OUTPUT",  "Output trim. The final hard limit stays at -0.1 dBFS.", true),
+      satMode (p.apvts, ParamIDs::satMode,     "Saturation type for the mid / high band: Tape (warm), Tube (asymmetric), Foldback (aggressive)."),
       browser (p)
 {
     setLookAndFeel (&lnf);
@@ -552,11 +495,11 @@ K808Editor::K808Editor (K808Processor& p)
     head.setBounds (Layout::head);
     canvas.addAndMakeVisible (head);
 
-    master.setBounds (Layout::leftPanel);
-    canvas.addAndMakeVisible (master);
+    subPanel.setBounds (Layout::leftPanel);
+    canvas.addAndMakeVisible (subPanel);
 
     // right panel: 2 x 3 knobs
-    UI::Knob* knobs[] = { &clip, &dirt, &metal, &buzz, &length, &mix };
+    UI::Knob* knobs[] = { &duck, &release, &clip, &knee, &ceiling, &output };
     for (int i = 0; i < 6; ++i)
     {
         const auto x = Layout::rightPanel.getX() + (i % 2) * 115 + 20;
@@ -566,52 +509,33 @@ K808Editor::K808Editor (K808Processor& p)
         canvas.addAndMakeVisible (*knobs[i]);
     }
 
-    // bottom bar: < preset > A/B SAVE OUTPUT
+    // bottom bar: < preset > SAVE | TAPE TUBE FOLDBACK
     const auto bar = Layout::bottomBar;
     const auto y = bar.getY() + 10, h = bar.getHeight() - 20;
-    prevButton.setBounds (bar.getX() + 8, y, 54, h);
-    presetButton.setBounds (bar.getX() + 66, y, 328, h);
-    nextButton.setBounds (bar.getX() + 398, y, 54, h);
-    abButton.setBounds (bar.getX() + 460, y, 58, h);
-    saveButton.setBounds (bar.getX() + 522, y, 78, h);
-    outputKnob.setSliderStyle (Slider::RotaryHorizontalVerticalDrag);
-    outputKnob.setTextBoxStyle (Slider::NoTextBox, false, 0, 0);
-    outputKnob.setRotaryParameters (MathConstants<float>::pi * 1.25f, MathConstants<float>::pi * 2.75f, true);
-    outputKnob.getProperties().set ("bipolar", true);
-    outputKnob.getProperties().set ("dark", true);
-    outputKnob.setPopupDisplayEnabled (true, true, this);
-    outputKnob.setTooltip ("OUTPUT level");
-    outputKnob.setDoubleClickReturnValue (true, 0.0);
-    outputAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, ParamIDs::outGain, outputKnob);
-    outputKnob.setBounds (bar.getX() + 612, y - 4, 66, h + 8);
-    canvas.addAndMakeVisible (outputKnob);
+    prevButton.setBounds (bar.getX() + 8, y, 50, h);
+    presetButton.setBounds (bar.getX() + 60, y, 262, h);
+    nextButton.setBounds (bar.getX() + 324, y, 50, h);
+    saveButton.setBounds (bar.getX() + 378, y, 74, h);
+    satMode.setBounds (bar.getX() + 458, y, 222, h);
+    canvas.addAndMakeVisible (satMode);
 
-    for (auto* b : { &prevButton, &presetButton, &nextButton, &abButton, &saveButton })
+    for (auto* b : { &prevButton, &presetButton, &nextButton, &saveButton })
     {
-        b->textHeight = 26.0f;
+        b->textHeight = 25.0f;
         canvas.addAndMakeVisible (*b);
     }
-    presetButton.textHeight = 25.0f;
+    presetButton.textHeight = 23.0f;
 
     prevButton.setTooltip ("Previous preset");
     nextButton.setTooltip ("Next preset");
     presetButton.setTooltip ("Open the preset table");
     saveButton.setTooltip ("Save the current sound as your own preset");
-    abButton.setTooltip ("A/B compare: switch between two versions of your settings");
 
     prevButton.onClick = [this] { processor.presets.loadNext (-1); refreshPresetLabel(); };
     nextButton.onClick = [this] { processor.presets.loadNext (1); refreshPresetLabel(); };
     presetButton.onClick = [this] { browser.open(); };
     saveButton.onClick = [this] { savePresetAs(); };
-    abButton.onClick = [this]
-    {
-        processor.presets.toggleAB();
-        abButton.setButtonText (processor.presets.isOnB() ? "B" : "A");
-        abButton.active = processor.presets.isOnB();
-        abButton.repaint();
-    };
 
-    // overlays
     browser.setBounds (0, 0, designWidth, designHeight);
     browser.onChange = [this] { shownPreset = {}; refreshPresetLabel(); };
     browser.onSaveAs = [this] { savePresetAs(); };
@@ -728,95 +652,30 @@ void K808Editor::timerCallback()
     useSoftwareRenderer();
 
     auto& e = processor.engine;
-    const float peaks[2] = { e.inPeak.exchange (0.0f), e.outPeak.exchange (0.0f) };
+    const auto outPeak = e.outPeak.exchange (0.0f);
+    e.inPeak.exchange (0.0f);
 
-    for (int i = 0; i < 2; ++i)
-    {
-        const auto db = Decibels::gainToDecibels (peaks[i], -100.0f);
-        meterDb[i] = db >= meterDb[i] ? db : jmax (db, meterDb[i] - 1.2f);
-    }
-    master.meter.setLevels (meterDb[0], meterDb[1]);
-
-    const auto outDb = Decibels::gainToDecibels (peaks[1], -100.0f);
+    const auto outDb = Decibels::gainToDecibels (outPeak, -100.0f);
     if (outDb >= peakHoldDb || --peakHoldTicks <= 0)
     {
         peakHoldDb = outDb;
         peakHoldTicks = 45;
     }
-
     const auto clipNow = e.clipDb.exchange (0.0f);
     if (clipNow >= clipHoldDb || --clipHoldTicks <= 0)
     {
         clipHoldDb = clipNow;
         clipHoldTicks = 30;
     }
+    const auto duckNow = e.duckDb.exchange (0.0f);
 
-    if (++tunerTick >= 3)
-    {
-        tunerTick = 0;
-        updateTuner();
-    }
+    String status = "OUT " + (peakHoldDb <= -60.0f ? String ("-inf") : String (peakHoldDb, 1))
+                  + "   CLIP -" + String (clipHoldDb, 1);
+    if (e.sidechainActive.load())
+        status << "   DUCK -" << String (duckNow, 1);
 
-    master.setValues (peakHoldDb, e.shortTermLufs.load(), clipHoldDb, lastNote, lastKey);
-
-    const auto phoneOn = processor.apvts.getRawParameterValue (ParamIDs::phone)->load() > 0.5f;
-    head.tick (peaks[1], phoneOn);
+    const auto phoneOn = processor.apvts.getRawParameterValue (ParamIDs::phonePreview)->load() > 0.5f;
+    head.tick (outPeak, phoneOn, status);
 
     refreshPresetLabel();
-}
-
-void K808Editor::updateTuner()
-{
-    auto& e = processor.engine;
-    constexpr int n = 600;
-    float buf[n];
-    const auto w = e.tunerWrite.load (std::memory_order_acquire);
-    for (int i = 0; i < n; ++i)
-        buf[i] = e.tunerRing[(size_t) ((w - n + i + Engine::tunerSize) % Engine::tunerSize)];
-
-    float rms = 0.0f;
-    for (auto v : buf) rms += v * v;
-    rms = std::sqrt (rms / (float) n);
-
-    const auto freq = rms > 0.004f ? detectPitch (buf, n, e.tunerRate) : 0.0f;
-
-    for (auto& h : keyHistogram)
-        h *= 0.997f;
-
-    if (freq > 20.0f)
-    {
-        const auto midi = 69.0f + 12.0f * std::log2 (freq / 440.0f);
-        const auto nearest = roundToInt (midi);
-        const auto cents = roundToInt ((midi - (float) nearest) * 100.0f);
-        const auto pc = ((nearest % 12) + 12) % 12;
-        keyHistogram[(size_t) pc] += 1.0f;
-        lastNote = String (noteNames[pc]) + String (nearest / 12 - 1) + " " + (cents >= 0 ? "+" : "") + String (cents);
-        noteHoldTicks = 6;
-    }
-    else if (noteHoldTicks > 0 && --noteHoldTicks == 0)
-    {
-        lastNote = {};
-    }
-
-    // key estimate (Krumhansl profiles) once enough notes were heard
-    float total = 0.0f;
-    for (auto h : keyHistogram) total += h;
-    if (total > 15.0f)
-    {
-        static constexpr float major[12] = { 6.35f, 2.23f, 3.48f, 2.33f, 4.38f, 4.09f, 2.52f, 5.19f, 2.39f, 3.66f, 2.29f, 2.88f };
-        static constexpr float minor[12] = { 6.33f, 2.68f, 3.52f, 5.38f, 2.60f, 3.53f, 2.54f, 4.75f, 3.98f, 2.69f, 3.34f, 3.17f };
-        float best = -1.0e9f;
-        for (int tonic = 0; tonic < 12; ++tonic)
-            for (int mode = 0; mode < 2; ++mode)
-            {
-                float score = 0.0f;
-                for (int k = 0; k < 12; ++k)
-                    score += keyHistogram[(size_t) ((tonic + k) % 12)] * (mode == 0 ? major[k] : minor[k]);
-                if (score > best)
-                {
-                    best = score;
-                    lastKey = String (noteNames[tonic]) + (mode == 0 ? " MAJ" : " MIN");
-                }
-            }
-    }
 }

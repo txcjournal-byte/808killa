@@ -1,184 +1,80 @@
 #pragma once
 
-#include <array>
-#include <atomic>
-#include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
 #include "Filters.h"
 
 // Snapshot of all parameter values for one block
 struct EngineParams
 {
-    int style = 0;
-    float kill = 0.0f, inGainDb = 0.0f;
-    bool bypass = false;
-    bool autoLevel = false;     // bring every 808 to the same level before the processing
-
-    // KICK: -1 = soften / remove the hit, 0 = as it is, +1 = strong kick on every note
-    float kick = 0.0f, kickLengthMs = 35.0f, kickDrop = 0.0f, kickBite = 0.5f;
-    bool kickProtect = false;   // keep DIRT off the hit
-
-    // main effects (0 = the 808 passes unchanged)
-    float clip = 0.0f, metal = 0.0f, buzz = 0.0f;
-
-    bool pitchOn = true;
-    float knock = 0.0f, knockTimeMs = 30.0f, dive = 0.0f, diveTimeMs = 250.0f, diveDelayMs = 150.0f;
-    float octDown = 0.0f, octUp = 0.0f;
-
-    bool wobbleOn = true;
-    float wobble = 0.0f, wobbleFadeMs = 0.0f;
-    int wobbleTarget = 0, wobbleRate = 6, wobbleShape = 0;
-    bool wobbleRetrig = true;
-
-    bool chopOn = true;
-    float chop = 0.0f, chopGate = 0.5f, chopSmooth = 0.2f;
-    int chopPattern = 1;
-    float width = 0.0f;
-
-    // host transport (tempo sync)
-    double bpm = 120.0, ppq = 0.0;
-    bool playing = false;
-
-    bool shapeOn = true;
-    float punch = 0.0f, click = 0.0f, length = 0.0f;
-
-    bool toneOn = true;
-    float subDb = 0.0f, harmonics = 0.0f;
-    bool filterOn = false;
-    float cutoff = 20000.0f, resonance = 0.1f;
-    int slope = 1;
-    float tiltDb = 0.0f;
-
-    bool dirtOn = true;
-    int dirtMode = 0;
-    float drive = 0.0f, dirtMix = 1.0f;
-    bool autoGain = true;
-    int oversampling = 0;
-    bool cleanLow = false;
-    float cleanFreq = 100.0f, crushBits = 24.0f, postFreq = 20000.0f;
-
-    bool duckOn = true;
-    float duck = 0.0f, duckReleaseMs = 120.0f, duckShape = 0.5f;
-
-    float clipper = 0.0f, ceilingDb = 0.0f, monoBelow = 0.0f, outGainDb = 0.0f, mix = 100.0f;
+    float inputGainDb = 0.0f;
+    bool phaseInvert = false;
+    float crossoverHz = 120.0f;
+    bool subMono = true, subCut = true;
+    float drive = 25.0f;            // 0..100 %
+    int satMode = 1;                // 0 Tape, 1 Tube, 2 Foldback
+    float focusDb = 3.0f;
+    float duckDepth = 50.0f;        // 0..100 %
+    float duckReleaseMs = 45.0f;
+    float clipDriveDb = 4.0f, clipKnee = 0.8f, ceilingDb = -0.2f;
     bool phone = false;
+    float outputDb = 0.0f;
+    bool bypass = false;
 };
 
-// How the KILL macro pushes each style (added on top of the style's own settings)
-struct KillMapping { float drive, punch, subDb, clipper; };
-KillMapping killMappingFor (int style) noexcept;
-
+// Signal chain (everything between the input gain and the downsampler runs at 4x):
+// input gain -> phase -> LR4 crossover -> sub: mono, 28 Hz HPF, sidechain ducking
+//                                     -> mid/high: focus bell, drive, saturator (tape / tube / foldback)
+// -> sum -> soft clipper with knee -> downsample -> phone preview -> output trim -> hard limit -0.1 dBFS
 class Engine
 {
 public:
+    static constexpr int oversamplingStages = 2;     // 4x
+
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
-    void forgetLevels();   // also clear the learned auto level / auto gain (new sample rate etc.)
-
-    // buffer: main in/out (1 or 2 channels), sidechain may be null
-    void process (juce::AudioBuffer<float>& buffer, int numChannels,
-                  const juce::AudioBuffer<float>* sidechain, const EngineParams& p);
+    void process (juce::AudioBuffer<float>& buffer, int numChannels, const juce::AudioBuffer<float>* sidechain,
+                  const EngineParams& params);
 
     int getLatencySamples() const noexcept { return latency; }
-    static double tailSeconds (const EngineParams& p) noexcept;
+
+    // the saturation curves (public for tests)
+    static float saturate (int mode, float x) noexcept;
+    static float softClip (float x, float knee) noexcept;
 
     // metering (audio thread writes, UI reads)
-    std::atomic<float> inPeak { 0.0f }, outPeak { 0.0f }, shortTermLufs { -100.0f };
+    std::atomic<float> inPeak { 0.0f }, outPeak { 0.0f }, clipDb { 0.0f }, duckDb { 0.0f };
     std::atomic<bool> sidechainActive { false };
-    std::atomic<float> clipDb { 0.0f };          // largest clipper reduction since the UI last read it
 
     // waveform scope: peak of the (delayed) input and the output, one value every 5 ms
     static constexpr int scopeSize = 1024;
     std::array<std::atomic<float>, scopeSize> scopeIn {}, scopeOut {};
     std::atomic<int> scopeWrite { 0 };
 
-    // tuner feed: input decimated to ~2 kHz (audio thread writes, UI reads the latest samples)
-    static constexpr int tunerSize = 4096;
-    std::vector<float> tunerRing = std::vector<float> ((size_t) tunerSize, 0.0f);
-    std::atomic<int> tunerWrite { 0 };
-    double tunerRate = 2000.0;
-
 private:
     struct Channel
     {
-        Biquad hp20, sub, tiltLow, tiltHigh, filt1, filt2, harmBand, harmHigh, clickHigh, post, kw1, kw2;
-        DelayLine lowDelay, dryDelay, padDelay, osBypass;
-        std::vector<float> pitchBuf;
-        int pitchWrite = 0;
-        Biquad octLow, octSub, octUpHigh;
-        Biquad kickHp, kickLp, metalHp, metalLpA, metalLpB, buzzHp, buzzLp, dirtLow1, dirtLow2;
-        DelayLine metalDelayA, metalDelayB;
-        float metalA = 0.0f, metalB = 0.0f, env = 0.0f, clipPrev = 0.0f;
-        DelayLine protectDelay;
-        float octFlip = 1.0f;
-        bool octWasNegative = false;
-        float dcX = 0.0f, dcY = 0.0f, hold = 0.0f;
-        int holdCount = 0;
+        Biquad subCut1, subCut2, focus, phoneHp1, phoneHp2, phoneLp1, phoneLp2;
+        float dcX = 0.0f, dcY = 0.0f;
+        DelayLine dryDelay;
     };
 
-    void updateFilters (const EngineParams& p, float subDb);
-    float readPitch (Channel&, float delay) const noexcept;
-    float lfoValue (int shape, float phase) const noexcept;
-    float shape (int mode, float x) const noexcept;
-    static float clipAdaa (float x, float prev, float hard) noexcept;
+    void updateFilters (float crossover, float focusDb);
 
-    double fs = 44100.0;
-    int maxBlock = 512;
-    int latency = 0;            // total reported latency = lookahead + oversampling
-    int osMaxLatency = 0;
-    int lookahead = 0;          // pitch FX lookahead (lets KNOCK read ahead of the note)
-    std::array<int, 3> osLatency {};
-    std::array<std::unique_ptr<juce::dsp::Oversampling<float>>, 3> oversamplers;
+    double fs = 44100.0, osFs = 176400.0;
+    int maxBlock = 512, latency = 0;
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
+    juce::dsp::LinkwitzRileyFilter<float> crossover;
     std::array<Channel, 2> ch;
-    juce::dsp::LinkwitzRileyFilter<float> cleanSplit, monoSplit;
-    Biquad phoneHp1, phoneHp2, phonePeak, phoneLp;
+    juce::AudioBuffer<float> dryBuf;
+    std::vector<float> duckGain;
 
-    juce::AudioBuffer<float> dryBuf, lowBuf, preBuf;
-    std::vector<float> levelGainBuf, driveAmount, driveGain, wobbleGain, wobbleCutoff, chopGain, protectEnv;
-    DelayLine protectEnvDelay, levelDelay;
-    Biquad f0Lp;
-    float f0Last = 0.0f, f0Est = 45.0f;     // pitch of the 808 for the KICK DROP layer
-    int f0Count = 0;
-    double dropPhase = 0.0, dropNotePhase = 0.0;
-    bool dropZcSeen = false;
-    DelayLine widthDelay;
-    Biquad widthHp1, widthHp2, tunerLp1, tunerLp2;
-    int tunerFactor = 24, tunerCount = 0;
-    double chopBeat = 0.0;
-    float chopLevel = 1.0f;
-    juce::dsp::StateVariableTPTFilter<float> wobbleFilter;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> inGain, outGain, clipGain, ceiling;
+    juce::SmoothedValue<float> driveSmoothed, focusSmoothed, crossoverSmoothed, bypassAmt;
+    float cCrossover = -1.0f, cFocus = -999.0f;
 
-    // pitch FX state
-    float pitchDelay = 0.0f, vibrato = 0.0f, oldDelay = 0.0f;
-    int crossfade = 0, crossfadeLength = 1, onsetCountdown = -1, noteSamples = 1 << 30, preHold = 0, preRise = 0;
-    float preFast = 0.0f, preSlow = 0.0f;
-
-    // wobble LFO state
-    double lfoPhase = 0.0;
-    float sampleHold = 0.0f;
-    juce::Random random { 808 };
-
-    // detection
-    float envFast = 0.0f, envSlow = 0.0f, envGate = 0.0f, notePeak = 0.0f, lengthGain = 1.0f;
-    int holdoff = 0;
     float scEnv = 0.0f;
+    bool firstBlock = true;
     int scSilentSamples = 1 << 30;
-    float rmsPre = 0.0f, rmsPost = 0.0f, agGain = 1.0f;
-    float levelNote = 0.0f, levelMeasurePeak = 0.0f, levelGain = 1.0f;   // auto level (0 = no note measured yet)
-    int levelMeasureLeft = 0;
-    float dcMix = 0.0f;
-    double preparedRate = 0.0;
     int scopeCount = 0, scopeLength = 240;
     float scopeInMax = 0.0f, scopeOutMax = 0.0f;
-
-    juce::SmoothedValue<float> inGain, outGain, mixAmt, bypassAmt, drive;
-
-    // cached filter settings
-    float cSub = -999.0f, cTilt = -999.0f, cCutoff = -1.0f, cRes = -1.0f, cPost = -1.0f, cClean = -1.0f, cMono = -1.0f;
-    float smoothCutoff = 20000.0f;
-
-    // loudness (K-weighted, 3 s short-term from 100 ms bins)
-    std::array<double, 30> lufsBins {};
-    int lufsBin = 0, lufsCount = 0, lufsBinLength = 4410;
-    double lufsAcc = 0.0;
 };

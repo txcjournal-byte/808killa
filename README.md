@@ -16,16 +16,21 @@ GitHub ho sestaví sám po každé změně:
    - **808-KILLA-Installer-macOS** – instalátor (.pkg) pro Mac (VST3 + AU)
 3. Ve FL Studiu: *Options → Manage plugins → Find more plugins*.
 
-## Co umí (verze 0.6)
+## Co umí (verze 0.7) – podle technického zadání
 
-Jedna obrazovka. **Po vložení zní 808 přesně jako originál** a každý knob na ni jen přidává efekt.
+Řetězec (vše mezi vstupem a downsamplerem běží ve 4× oversamplingu, latence 4 vzorky):
 
-- **Hlava uprostřed:** táhnutím čelisti dolů = **KILL** (zesílí všechny efekty najednou). V puse běží vlna: bílá čára = vstup, červená = výstup, světlé okraje = clipper.
-- **Vpravo:** **CLIP** (hlasitější a tvrdší, clipper bez aliasingu), **DIRT** (zkreslení, typ podle presetu), **METAL** (kovová rezonance), **BUZZ** (bzučení nad subem), **LENGTH** (kratší / delší 808), **MIX**.
-- **MASTER vlevo:** IN/OUT, PEAK, LUFS, CLIP, nota a tónina, PHONE check.
-- **Dole:** preset `< KATEGORIE / NÁZEV >`, A/B, SAVE, OUTPUT. Kliknutím na název tabulka 96 presetů ve 12 kategoriích.
+`Input gain → Phase → LR4 crossover (80–200 Hz) → SUB: mono, 28 Hz HPF 24 dB/okt, sidechain ducking`
+`→ MID/HIGH: Focus bell 550 Hz (0–12 dB), Drive, saturace Tape / Tube / Foldback → součet → soft clipper s kolenem`
+`→ downsampling → Phone preview (400 Hz–3,5 kHz) → Output trim → hard limit −0,1 dBFS`
 
-Sub pod efekty zůstává čistý, efekty reagují stejně na tichou i hlasitou 808 (AUTO LEVEL uvnitř, hlasitost se vrací zpět).
+- **Vlevo (SUB / INPUT):** INPUT, XOVER, FOCUS, přepínače MONO, 28 HZ, PHASE, PHONE
+- **Uprostřed:** čelist = **DRIVE**, v puse vlna (bílá = vstup, červená = výstup) a OUT / CLIP / DUCK hodnoty
+- **Vpravo:** DUCK, RELEASE, CLIP (drive do clipperu 0–18 dB), KNEE (0,5–0,95), CEILING, OUTPUT
+- **Dole:** presety (96 ve 12 kategoriích) a typ saturace TAPE / TUBE / FOLDBACK
+
+**Sidechain ve FL Studiu:** na mixer tracku s kickem klikni pravým na šipku k tracku s 808 → *Sidechain to this track*.
+Ducking pracuje jen na sub pásmu, střed a výšky zůstávají.
 
 ## Build na vlastním PC
 

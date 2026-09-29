@@ -17,76 +17,27 @@ K808Processor::K808Processor()
         jassert (v != nullptr);
         return v;
     };
-    raw.style = rawFor (ParamIDs::style);
-    raw.kill = rawFor (ParamIDs::kill);
-    raw.autoLevel = rawFor (ParamIDs::autoLevel);
-    raw.clip = rawFor (ParamIDs::clip);
-    raw.metal = rawFor (ParamIDs::metal);
-    raw.buzz = rawFor (ParamIDs::buzz);
-    raw.kick = rawFor (ParamIDs::kick);
-    raw.kickLength = rawFor (ParamIDs::kickLength);
-    raw.kickDrop = rawFor (ParamIDs::kickDrop);
-    raw.kickBite = rawFor (ParamIDs::kickBite);
-    raw.kickProtect = rawFor (ParamIDs::kickProtect);
-    raw.inGain = rawFor (ParamIDs::inGain);
-    raw.bypass = rawFor (ParamIDs::bypass);
-    raw.shapeOn = rawFor (ParamIDs::shapeOn);
-    raw.punch = rawFor (ParamIDs::punch);
-    raw.punchClick = rawFor (ParamIDs::punchClick);
-    raw.length = rawFor (ParamIDs::length);
-    raw.toneOn = rawFor (ParamIDs::toneOn);
-    raw.sub = rawFor (ParamIDs::sub);
-    raw.harmonics = rawFor (ParamIDs::harmonics);
-    raw.filterOn = rawFor (ParamIDs::filterOn);
-    raw.cutoff = rawFor (ParamIDs::cutoff);
-    raw.resonance = rawFor (ParamIDs::resonance);
-    raw.slope = rawFor (ParamIDs::slope);
-    raw.tilt = rawFor (ParamIDs::tilt);
-    raw.dirtOn = rawFor (ParamIDs::dirtOn);
-    raw.dirtMode = rawFor (ParamIDs::dirtMode);
-    raw.dirt = rawFor (ParamIDs::dirt);
-    raw.dirtMix = rawFor (ParamIDs::dirtMix);
-    raw.autoGain = rawFor (ParamIDs::autoGain);
-    raw.oversample = rawFor (ParamIDs::oversample);
-    raw.cleanLow = rawFor (ParamIDs::cleanLow);
-    raw.cleanFreq = rawFor (ParamIDs::cleanFreq);
-    raw.crushBits = rawFor (ParamIDs::crushBits);
-    raw.postFilter = rawFor (ParamIDs::postFilter);
-    raw.duckOn = rawFor (ParamIDs::duckOn);
-    raw.duck = rawFor (ParamIDs::duck);
-    raw.duckRel = rawFor (ParamIDs::duckRel);
-    raw.duckShape = rawFor (ParamIDs::duckShape);
-    raw.clipper = rawFor (ParamIDs::clipper);
-    raw.ceiling = rawFor (ParamIDs::ceiling);
-    raw.monoBelow = rawFor (ParamIDs::monoBelow);
-    raw.outGain = rawFor (ParamIDs::outGain);
-    raw.mix = rawFor (ParamIDs::mix);
-    raw.phone = rawFor (ParamIDs::phone);
-    raw.pitchOn = rawFor (ParamIDs::pitchOn);
-    raw.knock = rawFor (ParamIDs::knock);
-    raw.knockTime = rawFor (ParamIDs::knockTime);
-    raw.dive = rawFor (ParamIDs::dive);
-    raw.diveTime = rawFor (ParamIDs::diveTime);
-    raw.diveDelay = rawFor (ParamIDs::diveDelay);
-    raw.octDown = rawFor (ParamIDs::octDown);
-    raw.octUp = rawFor (ParamIDs::octUp);
-    raw.wobbleOn = rawFor (ParamIDs::wobbleOn);
-    raw.wobble = rawFor (ParamIDs::wobble);
-    raw.wobbleTarget = rawFor (ParamIDs::wobbleTarget);
-    raw.wobbleRate = rawFor (ParamIDs::wobbleRate);
-    raw.wobbleShape = rawFor (ParamIDs::wobbleShape);
-    raw.wobbleFade = rawFor (ParamIDs::wobbleFade);
-    raw.wobbleRetrig = rawFor (ParamIDs::wobbleRetrig);
-    raw.chopOn = rawFor (ParamIDs::chopOn);
-    raw.chop = rawFor (ParamIDs::chop);
-    raw.chopPattern = rawFor (ParamIDs::chopPattern);
-    raw.chopGate = rawFor (ParamIDs::chopGate);
-    raw.chopSmooth = rawFor (ParamIDs::chopSmooth);
-    raw.width = rawFor (ParamIDs::width);
+    using namespace ParamIDs;
+    raw.inputGain = rawFor (inputGain);
+    raw.phaseInvert = rawFor (phaseInvert);
+    raw.crossover = rawFor (crossoverFreq);
+    raw.subMono = rawFor (subMono);
+    raw.subCut = rawFor (subCut);
+    raw.drive = rawFor (driveAmount);
+    raw.satMode = rawFor (satMode);
+    raw.focus = rawFor (midFocus);
+    raw.duckDepth = rawFor (duckDepth);
+    raw.duckRelease = rawFor (duckRelease);
+    raw.clipDrive = rawFor (clipDrive);
+    raw.clipKnee = rawFor (clipKnee);
+    raw.ceiling = rawFor (clipCeiling);
+    raw.phone = rawFor (phonePreview);
+    raw.outputGain = rawFor (outputGain);
+    raw.bypass = rawFor (bypass);
 
     bypassParam = apvts.getParameter (ParamIDs::bypass);
 
-    // start clean: every effect at zero, the 808 passes unchanged (not undoable)
+    // start on the default settings (not undoable)
     presets.init();
     undoManager.clearUndoHistory();
 }
@@ -126,87 +77,28 @@ void K808Processor::reset()
 
 double K808Processor::getTailLengthSeconds() const
 {
-    return Engine::tailSeconds (readParams());
+    return 0.05;
 }
 
 EngineParams K808Processor::readParams() const
 {
     EngineParams p;
-    p.style = (int) raw.style->load();
-    p.kill = raw.kill->load();
-    p.inGainDb = raw.inGain->load();
-    p.bypass = raw.bypass->load() > 0.5f;
-    p.autoLevel = raw.autoLevel->load() > 0.5f;
-    p.clip = raw.clip->load();
-    p.metal = raw.metal->load();
-    p.buzz = raw.buzz->load();
-
-    p.kick = raw.kick->load();
-    p.kickLengthMs = raw.kickLength->load();
-    p.kickDrop = raw.kickDrop->load();
-    p.kickBite = raw.kickBite->load();
-    p.kickProtect = raw.kickProtect->load() > 0.5f;
-
-    p.pitchOn = raw.pitchOn->load() > 0.5f;
-    p.knock = raw.knock->load();
-    p.knockTimeMs = raw.knockTime->load();
-    p.dive = raw.dive->load();
-    p.diveTimeMs = raw.diveTime->load();
-    p.diveDelayMs = raw.diveDelay->load();
-    p.octDown = raw.octDown->load();
-    p.octUp = raw.octUp->load();
-
-    p.wobbleOn = raw.wobbleOn->load() > 0.5f;
-    p.wobble = raw.wobble->load();
-    p.wobbleTarget = (int) raw.wobbleTarget->load();
-    p.wobbleRate = (int) raw.wobbleRate->load();
-    p.wobbleShape = (int) raw.wobbleShape->load();
-    p.wobbleFadeMs = raw.wobbleFade->load();
-    p.wobbleRetrig = raw.wobbleRetrig->load() > 0.5f;
-
-    p.chopOn = raw.chopOn->load() > 0.5f;
-    p.chop = raw.chop->load();
-    p.chopPattern = (int) raw.chopPattern->load();
-    p.chopGate = raw.chopGate->load();
-    p.chopSmooth = raw.chopSmooth->load();
-    p.width = raw.width->load();
-
-    p.shapeOn = raw.shapeOn->load() > 0.5f;
-    p.punch = raw.punch->load();
-    p.click = raw.punchClick->load();
-    p.length = raw.length->load();
-
-    p.toneOn = raw.toneOn->load() > 0.5f;
-    p.subDb = raw.sub->load();
-    p.harmonics = raw.harmonics->load();
-    p.filterOn = raw.filterOn->load() > 0.5f;
-    p.cutoff = raw.cutoff->load();
-    p.resonance = raw.resonance->load();
-    p.slope = (int) raw.slope->load();
-    p.tiltDb = raw.tilt->load();
-
-    p.dirtOn = raw.dirtOn->load() > 0.5f;
-    p.dirtMode = (int) raw.dirtMode->load();
-    p.drive = raw.dirt->load();
-    p.dirtMix = raw.dirtMix->load();
-    p.autoGain = raw.autoGain->load() > 0.5f;
-    p.oversampling = (int) raw.oversample->load();
-    p.cleanLow = raw.cleanLow->load() > 0.5f;
-    p.cleanFreq = raw.cleanFreq->load();
-    p.crushBits = raw.crushBits->load();
-    p.postFreq = raw.postFilter->load();
-
-    p.duckOn = raw.duckOn->load() > 0.5f;
-    p.duck = raw.duck->load();
-    p.duckReleaseMs = raw.duckRel->load();
-    p.duckShape = raw.duckShape->load();
-
-    p.clipper = raw.clipper->load();
+    p.inputGainDb = raw.inputGain->load();
+    p.phaseInvert = raw.phaseInvert->load() > 0.5f;
+    p.crossoverHz = raw.crossover->load();
+    p.subMono = raw.subMono->load() > 0.5f;
+    p.subCut = raw.subCut->load() > 0.5f;
+    p.drive = raw.drive->load();
+    p.satMode = (int) raw.satMode->load();
+    p.focusDb = raw.focus->load();
+    p.duckDepth = raw.duckDepth->load();
+    p.duckReleaseMs = raw.duckRelease->load();
+    p.clipDriveDb = raw.clipDrive->load();
+    p.clipKnee = raw.clipKnee->load();
     p.ceilingDb = raw.ceiling->load();
-    p.monoBelow = raw.monoBelow->load();
-    p.outGainDb = raw.outGain->load();
-    p.mix = raw.mix->load();
     p.phone = raw.phone->load() > 0.5f;
+    p.outputDb = raw.outputGain->load();
+    p.bypass = raw.bypass->load() > 0.5f;
     return p;
 }
 
@@ -229,15 +121,7 @@ void K808Processor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&)
         out.copyFrom (1, 0, out, 0, 0, numSamples);
 
     ignoreUnused (main);
-    auto params = readParams();
-
-    if (auto* host = getPlayHead())
-        if (const auto pos = host->getPosition())
-        {
-            params.bpm = pos->getBpm().orFallback (120.0);
-            params.ppq = pos->getPpqPosition().orFallback (0.0);
-            params.playing = pos->getIsPlaying();
-        }
+    const auto params = readParams();
 
     if (getBusCount (true) > 1 && getBus (true, 1)->isEnabled() && getChannelCountOfBus (true, 1) > 0)
     {

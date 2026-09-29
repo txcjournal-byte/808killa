@@ -47,7 +47,11 @@ public:
 
 private:
     // cached raw parameter pointers (lookups by name would allocate on the audio thread)
-    struct Raw { std::atomic<float>* style, *kill, *autoLevel, *clip, *metal, *buzz, *kick, *kickLength, *kickDrop, *kickBite, *kickProtect, *inGain, *bypass, *shapeOn, *punch, *punchClick, *length, *toneOn, *sub, *harmonics, *filterOn, *cutoff, *resonance, *slope, *tilt, *dirtOn, *dirtMode, *dirt, *dirtMix, *autoGain, *oversample, *cleanLow, *cleanFreq, *crushBits, *postFilter, *duckOn, *duck, *duckRel, *duckShape, *clipper, *ceiling, *monoBelow, *outGain, *mix, *phone, *pitchOn, *knock, *knockTime, *dive, *diveTime, *diveDelay, *octDown, *octUp, *wobbleOn, *wobble, *wobbleTarget, *wobbleRate, *wobbleShape, *wobbleFade, *wobbleRetrig, *chopOn, *chop, *chopPattern, *chopGate, *chopSmooth, *width; } raw {};
+    struct Raw
+    {
+        std::atomic<float>* inputGain, *phaseInvert, *crossover, *subMono, *subCut, *drive, *satMode, *focus,
+                          *duckDepth, *duckRelease, *clipDrive, *clipKnee, *ceiling, *phone, *outputGain, *bypass;
+    } raw {};
     juce::AudioProcessorParameter* bypassParam = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (K808Processor)

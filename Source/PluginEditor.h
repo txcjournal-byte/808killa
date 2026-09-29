@@ -33,7 +33,7 @@ public:
     void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
     // called by the editor timer
-    void tick (float outLevel, bool phoneOn);
+    void tick (float outLevel, bool phoneOn, const juce::String& status);
 
 private:
     bool hitsJaw (juce::Point<float>) const;
@@ -47,24 +47,21 @@ private:
     float kill = 0.0f, beat = 0.0f, slowLevel = 0.0f, dragStart = 0.0f;
     bool hover = false, dragging = false, phoneOn = false;
     std::vector<float> scopeIn, scopeOut;
+    juce::String status;
     juce::SharedResourcePointer<Look::Fonts> fonts;
 };
 
 //==============================================================================
-// Left panel: IN / OUT meters, peak, loudness, clipper reduction, tuner
-class MasterPanel : public juce::Component
+// Left panel: input, crossover, focus and the sub switches
+class SubPanel : public juce::Component
 {
 public:
-    explicit MasterPanel (K808Processor&);
+    explicit SubPanel (K808Processor&);
     void paint (juce::Graphics&) override;
-    void resized() override;
-    void setValues (float peakDb, float lufs, float clipDb, const juce::String& note, const juce::String& key);
-
-    UI::Meter meter;
 
 private:
-    UI::LedToggle phone;
-    juce::String values[5];
+    UI::Knob input, crossover, focus;
+    UI::LedToggle subMono, subCut, phase, phone;
     juce::SharedResourcePointer<Look::Fonts> fonts;
 };
 
@@ -131,7 +128,6 @@ private:
     void useSoftwareRenderer();
     void savePresetAs();
     void refreshPresetLabel();
-    void updateTuner();
 
     K808Processor& processor;
     Look::LookAndFeel lnf;
@@ -139,26 +135,18 @@ private:
     Canvas canvas;
 
     HeadView head;
-    MasterPanel master;
-    UI::Knob clip, dirt, metal, buzz, length, mix;
-    UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" },
-                   abButton { "A" };
-    juce::Slider outputKnob;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
+    SubPanel subPanel;
+    UI::Knob duck, release, clip, knee, ceiling, output;
+    UI::ChoiceSelector satMode;
+    UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" };
     PresetBrowser browser;
 
-    float meterDb[2] { -100.0f, -100.0f };
     float peakHoldDb = -100.0f, clipHoldDb = 0.0f;
     int peakHoldTicks = 0, clipHoldTicks = 0;
     juce::String shownPreset;
     bool shownModified = false;
 
     std::unique_ptr<juce::AlertWindow> saveDialog;
-
-    // tuner
-    std::array<float, 12> keyHistogram {};
-    juce::String lastNote, lastKey { "--" };
-    int noteHoldTicks = 0, tunerTick = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (K808Editor)
 };

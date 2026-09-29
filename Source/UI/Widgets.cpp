@@ -108,9 +108,9 @@ void LedToggle::paintButton (Graphics& g, bool over, bool)
     g.setColour (Palette::text);
     if (big)
     {
-        g.setFont (fonts->bold (r.getHeight() * 0.22f));
-        g.drawFittedText (getButtonText().replace (" ", "\n"), r.withTrimmedTop (r.getHeight() * 0.5f).reduced (4.0f, 2.0f).toNearestInt(),
-                          Justification::centred, 2, 0.8f);
+        g.setFont (fonts->bold (jmin (22.0f, r.getHeight() * 0.4f)));
+        g.drawFittedText (getButtonText(), r.withTrimmedTop (r.getHeight() * 0.52f).reduced (4.0f, 1.0f).toNearestInt(),
+                          Justification::centred, 1, 0.7f);
     }
     else
     {
@@ -158,7 +158,7 @@ void ChoiceSelector::paint (Graphics& g)
         g.setColour (sel ? Colour (0xffff4b3c) : Colour (0xff8b877f).withAlpha (0.45f));
         g.drawRect (r.reduced (3.0f), sel ? 1.6f : 1.1f);
         g.setColour (sel ? Colour (0xffffe5de) : Colour (0xffd9d4ca));
-        g.setFont (fonts->sans (jmin (34.0f, r.getHeight() * 0.56f)));
+        g.setFont (fonts->sans (jmin (26.0f, r.getHeight() * 0.46f)));
         g.drawFittedText (names[i], r.reduced (4.0f, 0.0f).toNearestInt(), Justification::centred, 1, 0.7f);
     }
 }

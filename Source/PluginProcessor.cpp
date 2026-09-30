@@ -34,6 +34,7 @@ K808Processor::K808Processor()
     raw.phone = rawFor (phonePreview);
     raw.outputGain = rawFor (outputGain);
     raw.bypass = rawFor (bypass);
+    raw.hit = rawFor (hit);
 
     bypassParam = apvts.getParameter (ParamIDs::bypass);
 
@@ -99,6 +100,7 @@ EngineParams K808Processor::readParams() const
     p.phone = raw.phone->load() > 0.5f;
     p.outputDb = raw.outputGain->load();
     p.bypass = raw.bypass->load() > 0.5f;
+    p.hit = raw.hit->load();
     return p;
 }
 

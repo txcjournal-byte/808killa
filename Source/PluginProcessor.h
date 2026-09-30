@@ -50,7 +50,7 @@ private:
     struct Raw
     {
         std::atomic<float>* inputGain, *phaseInvert, *crossover, *subMono, *subCut, *drive, *satMode, *focus,
-                          *duckDepth, *duckRelease, *clipDrive, *clipKnee, *ceiling, *phone, *outputGain, *bypass;
+                          *duckDepth, *duckRelease, *clipDrive, *clipKnee, *ceiling, *phone, *outputGain, *bypass, *hit;
     } raw {};
     juce::AudioProcessorParameter* bypassParam = nullptr;
 

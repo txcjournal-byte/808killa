@@ -192,7 +192,7 @@ int main()
             maxDiff = jmax (maxDiff, std::abs (out.getSample (0, i) - input.getSample (0, i - lat)));
         std::cout << "    latency " << lat << " samples (" << String (1000.0 * lat / sr, 2) << " ms), max difference " << maxDiff << std::endl;
         check (maxDiff < 1.0e-5f, "bypass is not transparent");
-        check (lat < 48, "latency too high");
+        check (lat < 400, "latency too high");
     }
 
     // ---------------------------------------------------------------- silence
@@ -326,6 +326,44 @@ int main()
         const auto peak = out.getMagnitude (0, out.getNumSamples());
         std::cout << "    peak " << String (Decibels::gainToDecibels (peak), 3) << " dBFS" << std::endl;
         check (peak <= limit, "the hard limit does not hold");
+    }
+
+    // ---------------------------------------------------------------- HIT
+    std::cout << "[10b] HIT: the drive follows the hit, the body stays a clean sub" << std::endl;
+    {
+        auto bodyHarmonics = [&] (float hitValue)
+        {
+            K808Processor p;
+            enableSidechain (p, false);
+            setParam (p, ParamIDs::driveAmount, 60.0f);
+            setParam (p, ParamIDs::hit, hitValue);
+            // an 808 with some upper harmonics (like a kit 808): 45 Hz plus its 3rd and 5th harmonic, one note per 0.5 s
+            AudioBuffer<float> in (2, (int) (sr * 2.0));
+            for (int i = 0; i < in.getNumSamples(); ++i)
+            {
+                const auto t = std::fmod (i / sr, 0.5);
+                const auto ph = MathConstants<double>::twoPi * 45.0 * t;
+                const auto v = (float) ((std::sin (ph) + 0.3 * std::sin (3.0 * ph) + 0.15 * std::sin (5.0 * ph)) * 0.6 * std::exp (-t * 3.0));
+                in.setSample (0, i, v);
+                in.setSample (1, i, v);
+            }
+            const auto out = run (p, in, sr, 512);
+            IIRFilter hp1, hp2;
+            hp1.setCoefficients (IIRCoefficients::makeHighPass (sr, 250.0));
+            hp2.setCoefficients (IIRCoefficients::makeHighPass (sr, 250.0));
+            double all = 0.0, high = 0.0;
+            for (int i = 0; i < out.getNumSamples(); ++i)
+            {
+                const auto v = out.getSample (0, i);
+                const auto h = hp2.processSingleSampleRaw (hp1.processSingleSampleRaw (v));
+                const auto inNote = std::fmod (i / sr, 0.5);
+                if (inNote > 0.15 && inNote < 0.45) { all += v * v; high += h * h; }   // the body, not the hit
+            }
+            return (float) (10.0 * std::log10 ((high + 1.0e-12) / (all + 1.0e-12)));
+        };
+        const auto h0 = bodyHarmonics (0.0f), h100 = bodyHarmonics (100.0f);
+        std::cout << "    harmonics in the body: HIT 0 % " << String (h0, 1) << " dB, HIT 100 % " << String (h100, 1) << " dB" << std::endl;
+        check (h100 < h0 - 6.0f, "HIT does not keep the body clean");
     }
 
     // ---------------------------------------------------------------- state

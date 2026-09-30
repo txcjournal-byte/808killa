@@ -50,7 +50,9 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
                                                               dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true, false);
     oversampler->initProcessing ((size_t) maxBlock);
     osFs = fs * (double) oversampler->getOversamplingFactor();
-    latency = (int) std::round (oversampler->getLatencyInSamples());
+    // a few ms of lookahead: the hit envelope starts right at the note, not when it was detected
+    lookaheadSamples = (int) std::round (fs * 0.005);
+    latency = (int) std::round (oversampler->getLatencyInSamples()) + lookaheadSamples;
 
     dsp::ProcessSpec osSpec { osFs, (uint32) (maxBlock * (int) oversampler->getOversamplingFactor()), 2 };
     crossover.prepare (osSpec);
@@ -66,10 +68,12 @@ void Engine::prepare (double sampleRate, int maxBlockSize)
         c.phoneLp1.setLowPass (fs, 3500.0, 0.7071);
         c.phoneLp2.setLowPass (fs, 3500.0, 0.7071);
         c.dryDelay.prepare (latency);
+        c.lookahead.prepare (lookaheadSamples);
     }
 
     dryBuf.setSize (2, maxBlock);
     duckGain.assign ((size_t) maxBlock, 1.0f);
+    hitEnv.assign ((size_t) maxBlock, 0.0f);
 
     for (auto* s : { &inGain, &outGain, &clipGain, &ceiling })
         s->reset (fs, 0.02);
@@ -97,7 +101,10 @@ void Engine::reset()
             b->reset();
         c.dcX = c.dcY = 0.0f;
         c.dryDelay.reset();
+        c.lookahead.reset();
     }
+    onFast = onSlow = hitLevel = 0.0f;
+    onHold = 0;
     scEnv = 0.0f;
     firstBlock = true;
     scopeCount = 0;
@@ -154,6 +161,10 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
     const auto scChannels = sidechain != nullptr ? sidechain->getNumChannels() : 0;
     const auto depth = jlimit (0.0f, 1.0f, p.duckDepth * 0.01f);
     const auto dcCoef = 1.0f - (float) (2.0 * MathConstants<double>::pi * 5.0 / osFs);        // DC blocker for the tube curve
+    const auto hitAmount = jlimit (0.0f, 1.0f, p.hit * 0.01f);
+    const auto hitDecay = std::exp (-1.0f / (float) (fs * 0.09));                              // the hit fades over ~90 ms
+    const auto fastA = 1.0f - std::exp (-1.0f / (float) (fs * 0.0005)), fastR = 1.0f - std::exp (-1.0f / (float) (fs * 0.03));
+    const auto slowA = 1.0f - std::exp (-1.0f / (float) (fs * 0.02)),   slowR = 1.0f - std::exp (-1.0f / (float) (fs * 0.15));
 
     {
         float pk = 0.0f;
@@ -173,11 +184,26 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
         for (int i = 0; i < n; ++i)
         {
             const auto g = inGain.getNextValue() * polarity;
+            float detect = 0.0f;
             for (int c = 0; c < numCh; ++c)
             {
                 dryBuf.setSample (c, i, data[c][i]);
-                data[c][i] *= g;
+                detect = jmax (detect, std::abs (data[c][i] * g));
+                data[c][i] = ch[(size_t) c].lookahead.process (data[c][i] * g, lookaheadSamples);
             }
+
+            // note onsets on the undelayed input: the hit envelope jumps to 1 and fades with the note,
+            // so drive and clipping hit the attack and leave the body a clean sub
+            onFast += (detect - onFast) * (detect > onFast ? fastA : fastR);
+            onSlow += (detect - onSlow) * (detect > onSlow ? slowA : slowR);
+            if (onHold > 0) --onHold;
+            if (onFast > 0.003f && onFast > onSlow * 1.6f && onHold == 0)
+            {
+                hitLevel = 1.0f;
+                onHold = (int) (fs * 0.06);
+            }
+            hitEnv[(size_t) i] = hitLevel;
+            hitLevel *= hitDecay;
 
             float s = 0.0f;
             for (int c = 0; c < jmin (2, scChannels); ++c)
@@ -207,9 +233,13 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 clipGain.getNextValue();
                 ceiling.getNextValue();
             }
-            const auto k = 1.0f + driveSmoothed.getCurrentValue() * 0.3f;               // up to +30 dB into the saturator
-            const auto makeup = 1.0f / std::sqrt (k * slopeAtZero (satMode));           // keeps the level in the same range
-            const auto cg = clipGain.getCurrentValue();
+            // HIT: the drive (and the clip drive) follow the hit of each note; the level compensation
+            // follows the knob, so the hit comes out louder than the body, like a kit 808
+            const auto follow = 1.0f - hitAmount + hitAmount * hitEnv[(size_t) base];
+            const auto kKnob = 1.0f + driveSmoothed.getCurrentValue() * 0.3f;          // up to +30 dB into the saturator
+            const auto k = 1.0f + driveSmoothed.getCurrentValue() * 0.3f * follow;
+            const auto makeup = 1.0f / std::sqrt (kKnob * slopeAtZero (satMode));
+            const auto cg = std::pow (clipGain.getCurrentValue(), follow);
             const auto ceil = ceiling.getCurrentValue();
 
             float low[2] = { 0.0f, 0.0f }, high[2] = { 0.0f, 0.0f };
@@ -236,7 +266,8 @@ void Engine::process (AudioBuffer<float>& buffer, int numCh, const AudioBuffer<f
                 st.dcY = dc;
 
                 // sum and soft clip to the ceiling
-                const auto sum = (sub + dc) * cg;
+                // the hit also pushes the level a little, so it stands above the body (kit 808s: hit >= body)
+                const auto sum = (sub + dc) * cg * (1.0f + 0.5f * hitAmount * hitEnv[(size_t) base]);
                 const auto y = softClip (sum / ceil, knee) * ceil;
                 if (std::abs (sum) > 1.0e-3f && std::abs (y) > 1.0e-6f)
                     clipMax = jmax (clipMax, std::abs (sum) / std::abs (y));

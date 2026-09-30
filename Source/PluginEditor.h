@@ -138,6 +138,7 @@ private:
     SubPanel subPanel;
     UI::Knob duck, release, clip, knee, ceiling, output;
     UI::ChoiceSelector satMode;
+    UI::Knob hit;
     UI::FlatButton prevButton { "<" }, nextButton { ">" }, presetButton { "" }, saveButton { "SAVE" };
     PresetBrowser browser;
 

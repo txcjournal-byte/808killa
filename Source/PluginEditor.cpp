@@ -484,6 +484,8 @@ K808Editor::K808Editor (K808Processor& p)
       ceiling (p.apvts, ParamIDs::clipCeiling, "CEILING", "Maximum level of the clipper."),
       output  (p.apvts, ParamIDs::outputGain,  "OUTPUT",  "Output trim. The final hard limit stays at -0.1 dBFS.", true),
       satMode (p.apvts, ParamIDs::satMode,     "Saturation type for the mid / high band: Tape (warm), Tube (asymmetric), Foldback (aggressive)."),
+      hit     (p.apvts, ParamIDs::hit,         "HIT",     "How much the drive and the clipper follow the hit of each note. High = dirty, loud hit and a clean sub body "
+                                                           "(like kit 808s). 0 = the whole note is driven the same."),
       browser (p)
 {
     setLookAndFeel (&lnf);
@@ -512,12 +514,17 @@ K808Editor::K808Editor (K808Processor& p)
     // bottom bar: < preset > SAVE | TAPE TUBE FOLDBACK
     const auto bar = Layout::bottomBar;
     const auto y = bar.getY() + 10, h = bar.getHeight() - 20;
-    prevButton.setBounds (bar.getX() + 8, y, 50, h);
-    presetButton.setBounds (bar.getX() + 60, y, 262, h);
-    nextButton.setBounds (bar.getX() + 324, y, 50, h);
-    saveButton.setBounds (bar.getX() + 378, y, 74, h);
-    satMode.setBounds (bar.getX() + 458, y, 222, h);
+    prevButton.setBounds (bar.getX() + 8, y, 46, h);
+    presetButton.setBounds (bar.getX() + 56, y, 200, h);
+    nextButton.setBounds (bar.getX() + 258, y, 46, h);
+    saveButton.setBounds (bar.getX() + 308, y, 70, h);
+    satMode.setBounds (bar.getX() + 384, y, 206, h);
     canvas.addAndMakeVisible (satMode);
+
+    // HIT: small knob at the end of the bar, label on the left of it
+    hit.setKnobArea ({ bar.getX() + 628, y + 12, 40, 40 }, 16.0f);
+    hit.setDark();
+    canvas.addAndMakeVisible (hit);
 
     for (auto* b : { &prevButton, &presetButton, &nextButton, &saveButton })
     {

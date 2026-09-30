@@ -22,6 +22,7 @@ namespace ParamIDs
     inline constexpr auto phonePreview  = "phone_preview";
     inline constexpr auto outputGain    = "output_gain";
     inline constexpr auto bypass        = "bypass";
+    inline constexpr auto hit           = "hit";
 }
 
 namespace Choices

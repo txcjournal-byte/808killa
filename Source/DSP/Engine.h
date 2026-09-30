@@ -19,6 +19,7 @@ struct EngineParams
     bool phone = false;
     float outputDb = 0.0f;
     bool bypass = false;
+    float hit = 70.0f;              // 0..100 %: how much drive and clip follow the hit of each note
 };
 
 // Signal chain (everything between the input gain and the downsampler runs at 4x):
@@ -53,6 +54,7 @@ public:
 private:
     struct Channel
     {
+        DelayLine lookahead;
         Biquad subCut1, subCut2, focus, phoneHp1, phoneHp2, phoneLp1, phoneLp2;
         float dcX = 0.0f, dcY = 0.0f;
         DelayLine dryDelay;
@@ -66,13 +68,15 @@ private:
     juce::dsp::LinkwitzRileyFilter<float> crossover;
     std::array<Channel, 2> ch;
     juce::AudioBuffer<float> dryBuf;
-    std::vector<float> duckGain;
+    std::vector<float> duckGain, hitEnv;
 
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> inGain, outGain, clipGain, ceiling;
     juce::SmoothedValue<float> driveSmoothed, focusSmoothed, crossoverSmoothed, bypassAmt;
     float cCrossover = -1.0f, cFocus = -999.0f;
 
     float scEnv = 0.0f;
+    float onFast = 0.0f, onSlow = 0.0f, hitLevel = 0.0f;
+    int onHold = 0, lookaheadSamples = 0;
     bool firstBlock = true;
     int scSilentSamples = 1 << 30;
     int scopeCount = 0, scopeLength = 240;

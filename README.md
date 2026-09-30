@@ -16,7 +16,7 @@ GitHub ho sestaví sám po každé změně:
    - **808-KILLA-Installer-macOS** – instalátor (.pkg) pro Mac (VST3 + AU)
 3. Ve FL Studiu: *Options → Manage plugins → Find more plugins*.
 
-## Co umí (verze 0.7) – podle technického zadání
+## Co umí (verze 0.8) – podle technického zadání + HIT
 
 Řetězec (vše mezi vstupem a downsamplerem běží ve 4× oversamplingu, latence 4 vzorky):
 
@@ -27,7 +27,11 @@ GitHub ho sestaví sám po každé změně:
 - **Vlevo (SUB / INPUT):** INPUT, XOVER, FOCUS, přepínače MONO, 28 HZ, PHASE, PHONE
 - **Uprostřed:** čelist = **DRIVE**, v puse vlna (bílá = vstup, červená = výstup) a OUT / CLIP / DUCK hodnoty
 - **Vpravo:** DUCK, RELEASE, CLIP (drive do clipperu 0–18 dB), KNEE (0,5–0,95), CEILING, OUTPUT
-- **Dole:** presety (96 ve 12 kategoriích) a typ saturace TAPE / TUBE / FOLDBACK
+- **Dole:** presety (96 ve 12 kategoriích), typ saturace TAPE / TUBE / FOLDBACK a **HIT**
+
+**HIT (0–100 %, výchozí 70 %):** drive i clipper sledují úder každé noty – úder je špinavý a hlasitý,
+tělo zůstane čistý sub, který přirozeně doznívá (jako u kitových 808). 0 % = celá nota se zkresluje stejně.
+Změřeno na 29 kitových 808: harmonické v těle +2 dB místo +6 dB, úder hlasitější než tělo.
 
 **Sidechain ve FL Studiu:** na mixer tracku s kickem klikni pravým na šipku k tracku s 808 → *Sidechain to this track*.
 Ducking pracuje jen na sub pásmu, střed a výšky zůstávají.

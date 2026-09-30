@@ -45,5 +45,6 @@ AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { phonePreview, 1 }, "Phone Check", false));
     layout.add (floatParam (outputGain, "Output Trim", { -18.0f, 6.0f, 0.1f }, 0.0f, dbText));
     layout.add (std::make_unique<AudioParameterBool> (ParameterID { bypass, 1 }, "Bypass", false));
+    layout.add (floatParam (hit, "Hit", { 0.0f, 100.0f, 0.1f }, 70.0f, pctText));
     return layout;
 }
